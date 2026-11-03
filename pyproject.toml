@@ -14,11 +14,18 @@ dependencies = [
     "chromadb (>=1.5.9,<2.0.0)",
     "langchain-chroma (>=1.1.0,<2.0.0)",
     "pypdf (>=6.21.4,<7.0.0)",
-    "python-dotenv (>=1.2.4,<2.0.0)"
+    "python-dotenv (>=1.2.4,<2.0.0)",
+    "pytest (>=8.0.0,<9.0.0)"
 ]
 
 [tool.poetry]
 package-mode = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["scripts"]
+# Host environments (e.g. ROS) may inject broken pytest plugins via entry points.
+# Prefer: PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
