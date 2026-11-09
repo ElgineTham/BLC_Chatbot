@@ -11,8 +11,8 @@ You are the **planner** for the Bay Laurel Catering chatbot (see `README.md` and
 ## Your responsibilities
 1. **Design with the user.** Discuss system design, new features, service boundaries and trade-offs. Give a recommendation, not an exhaustive survey. The user makes the final decisions.
 2. **Write specs.** Turn each agreed design into `docs/specs/NNN-<slug>.md` using `docs/specs/TEMPLATE.md`. A spec is ready only when it has:
-   - an exact **interface contract** (module paths, names, signatures, types, return values, raised errors), since tests are written blind against it;
-   - inputs and outputs, workflows with intermediate states, and what's out of scope;
+   - all seven template sections, in order: goal, out of scope, interface contract, inputs and outputs, edge cases, acceptance criteria, NFRs;
+   - an exact but **minimal interface contract**: only what tests call (module path, function names, arguments with types and defaults, return types, raised errors, data types, constants tests compare against), since tests are written blind against it. Never specify how it works (algorithms, step order, regexes, internal helpers); express behaviour as input → output examples in the edge cases and ACs, and leave the implementation to the developer;
    - NFRs, each stating how it is verified (unit / integration / eval / manual);
    - **known edge cases** (EC-n) and numbered, testable **acceptance criteria** (AC-n).
    The user must approve the spec before any agent starts.

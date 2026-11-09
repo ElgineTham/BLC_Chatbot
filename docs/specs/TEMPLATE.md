@@ -10,14 +10,26 @@ What this change achieves and why, in 2–4 sentences.
 What this spec deliberately does NOT cover.
 
 ## 3. Interface contract
-The exact public surface. Tests are written ONLY against this, so it must be precise.
-For each item: module path, name, signature with types, return type, raised errors.
+Only the public surface that tests call. Tests are written blind against this, so it must be exact.
+List, for each item:
+- the module path (e.g. `scripts/chat.py`);
+- the function name, arguments with types and defaults, and the return type;
+- the errors it raises, and when;
+- data types it takes or returns (classes, fields, enums);
+- constants that tests compare against.
 
 ```python
 # scripts/<module>.py
-def example(arg: str, k: int = 3) -> list[str]:
+@dataclass(frozen=True)
+class ExampleResult:
+    value: str
+
+def example(arg: str, k: int = 3) -> ExampleResult:
     """Raises ValueError if k < 1."""
 ```
+
+Do NOT describe how it works: no algorithms, step orders, regexes or internal helpers.
+Behaviour belongs in sections 4–6 as input → output examples; the developer decides how to achieve it.
 
 CLI / env vars / files read or written, if any:
 - ...
@@ -27,26 +39,17 @@ CLI / env vars / files read or written, if any:
 |---|---|---|---|
 | ... | ... | ... | ... |
 
-## 5. Workflows
-Step-by-step flows, including intermediate states.
-1. ...
-2. ...
-
-## 6. Non-functional requirements
-| ID | Requirement | How verified (unit / integration / eval / manual) |
-|---|---|---|
-| NFR-1 | ... | ... |
-
-## 7. Known edge cases
-Edge cases the planner already knows about. Tests must cover all of these; the tester may add more.
+## 5. Edge cases
+Edge cases the planner already knows about, each with its expected result. Tests must cover all of these; the tester may add more.
 - EC-1: ...
 
-## 8. Acceptance criteria
-Numbered and testable. Each one should imply at least a right case, a wrong case and, where applicable, a boundary case.
+## 6. Acceptance criteria
+Numbered and testable, stated as observable behaviour (what goes in, what comes out or happens), not implementation.
+Each one should imply at least a right case, a wrong case and, where applicable, a boundary case.
 - **AC-1:** ...
 - **AC-2:** ...
 
-## 9. Test layers
-- **Unit:** Ollama and Chroma mocked/faked; deterministic; always run.
-- **Integration:** real Ollama/Chroma; `@pytest.mark.integration`; skipped if Ollama is unavailable.
-- **Eval:** golden-set quality metrics with thresholds; `@pytest.mark.eval`.
+## 7. Non-functional requirements
+| ID | Requirement | How verified (unit / integration / eval / manual) |
+|---|---|---|
+| NFR-1 | ... | ... |
