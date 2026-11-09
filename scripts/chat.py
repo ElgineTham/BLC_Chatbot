@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from langchain_chroma import Chroma
@@ -18,7 +19,16 @@ CHAT_MODEL = "qwen2.5:7b"
 TOP_K = 3
 HISTORY_TOKEN_LIMIT = 2000
 CHARS_PER_TOKEN = 4
-EXIT_COMMANDS = {"quit", "exit", "bye"}
+EXIT_COMMANDS: frozenset[str] = frozenset({
+    "bye", "bye bye", "goodbye", "good bye",
+    "see you", "see ya", "see you later", "see you soon", "talk to you later",
+    "quit", "exit", "stop", "im done", "thats all", "thats it",
+    "take care", "good night", "goodnight", "have a good one",
+})
+EXIT_FILLERS: frozenset[str] = frozenset({
+    "okay", "ok", "alright", "all right", "thanks", "thank you",
+})
+APOSTROPHES = ("'", "\u2019")
 
 SYSTEM_PROMPT = """You are Bay Laurel Catering's internal assistant for employees.
 Answer ONLY using the provided context.
@@ -148,6 +158,96 @@ def unknown_retrieval_reply() -> str:
     )
 
 
+def normalize_utterance(text: str) -> str:
+    """1. casefold.
+    2. Delete apostrophes (' and U+2019 ’), so "that's" becomes "thats" and "I'm" becomes "im".
+    3. Replace every other character that is not a letter, digit or whitespace with a space,
+       so "bye-bye!" becomes "bye bye".
+    4. Collapse whitespace runs to one space and strip.
+    Returns "" for input with no letters or digits."""
+    folded = text.casefold()
+    for apostrophe in APOSTROPHES:
+        folded = folded.replace(apostrophe, "")
+    spaced = "".join(ch if ch.isalnum() or ch.isspace() else " " for ch in folded)
+    return " ".join(spaced.split())
+
+
+def _exit_entry_lengths() -> tuple[int, ...]:
+    """Distinct word counts of all exit entries, longest first."""
+    entries = EXIT_COMMANDS | EXIT_FILLERS
+    return tuple(sorted({len(entry.split()) for entry in entries}, reverse=True))
+
+
+def is_exit_utterance(text: str) -> bool:
+    """Split normalize_utterance(text) into words. Return True iff
+    (a) there is at least one word,
+    (b) the words can be split, front to back, into consecutive items, each of which is a
+        whole entry of EXIT_COMMANDS or EXIT_FILLERS (multi-word entries match consecutive
+        words; entries may repeat and appear in any order), and
+    (c) at least one item is from EXIT_COMMANDS.
+    If several splits exist, any valid split that meets (c) counts."""
+    words = normalize_utterance(text).split()
+    if not words:
+        return False
+    lengths = _exit_entry_lengths()
+    n = len(words)
+    # reach[i] = set of "has a command been used" flags for valid splits of words[:i].
+    reach: list[set[bool]] = [set() for _ in range(n + 1)]
+    reach[0].add(False)
+    for start in range(n):
+        if not reach[start]:
+            continue
+        for length in lengths:
+            end = start + length
+            if end > n:
+                continue
+            item = " ".join(words[start:end])
+            if item in EXIT_COMMANDS:
+                reach[end].add(True)
+            elif item in EXIT_FILLERS:
+                reach[end].update(reach[start])
+    return True in reach[n]
+
+
+@dataclass(frozen=True)
+class TurnResult:
+    reply: str  # the assistant's answer, exactly as printed
+    history: list[dict[str, str]]  # new history after this turn
+    docs: list[Document]  # docs returned by retrieve(); [] if none
+
+
+def answer_turn(
+    store: Chroma,
+    llm: ChatOllama,
+    history: list[dict[str, str]],
+    question: str,
+) -> TurnResult:
+    """Run one question through the RAG pipeline.
+
+    Raises ValueError if question is empty or whitespace-only (before any
+    store or llm call).
+    """
+    q = question.strip()
+    if q == "":
+        raise ValueError("question must not be empty or whitespace-only")
+
+    # Summarize only prior history (exclude the current question).
+    prior = maybe_summarize(llm, history)
+
+    docs = retrieve(store, q)
+    if not docs:
+        docs = []
+        reply = unknown_retrieval_reply()
+    else:
+        reply = answer_from_context(llm, prior, docs, q)
+
+    new_history = list(prior) + [
+        {"role": "user", "content": q},
+        {"role": "assistant", "content": reply},
+    ]
+    return TurnResult(reply=reply, history=new_history, docs=docs)
+
+
 def main() -> int:
     if not CHROMA_DIR.exists():
         print(
@@ -173,26 +273,13 @@ def main() -> int:
         if not raw:
             continue
 
-        if raw.casefold() in EXIT_COMMANDS:
+        if is_exit_utterance(raw):
             print("Bye.")
             return 0
 
-        # Summarize only prior history (exclude the current question).
-        history = maybe_summarize(llm, history)
-
-        docs = retrieve(store, raw)
-        if not docs:
-            reply = unknown_retrieval_reply()
-            print(f"Assistant: {reply}\n")
-            history.append({"role": "user", "content": raw})
-            history.append({"role": "assistant", "content": reply})
-            continue
-
-        reply = answer_from_context(llm, history, docs, raw)
-        print(f"Assistant: {reply}\n")
-
-        history.append({"role": "user", "content": raw})
-        history.append({"role": "assistant", "content": reply})
+        result = answer_turn(store, llm, history, raw)
+        print(f"Assistant: {result.reply}\n")
+        history = result.history
 
 
 if __name__ == "__main__":
