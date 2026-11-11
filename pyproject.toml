@@ -27,7 +27,8 @@ package-mode = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["scripts"]
+pythonpath = ["scripts", "src"]
+addopts = "--import-mode=importlib"
 markers = [
     "integration: uses real Ollama/Chroma; skipped if Ollama is unavailable",
     "eval: golden-set quality metrics judged against thresholds",

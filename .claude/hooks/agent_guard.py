@@ -41,9 +41,8 @@ PYTEST_ONLY = (
 
 POLICIES: dict[str, dict] = {
     "planner": {
-        # Designs and orchestrates; implementation and tests belong to other agents.
         "read_deny": [],
-        "write_deny": ["scripts/", "tests/", "evals/", "data/", ".git/"],
+        "write_deny": [],
         "bash_deny": [],
     },
     "developer": {
@@ -52,16 +51,16 @@ POLICIES: dict[str, dict] = {
         "bash_deny": [r"\bpytest\b"],
     },
     "tester": {
-        "read_deny": ["scripts/", "README.md", ".git/"],
+        "read_deny": ["scripts/", "src/", "README.md", ".git/"],
         "write_deny": [
-            "scripts/", "docs/", "evals/", "data/", ".claude/", ".git/",
+            "scripts/", "src/", "docs/", "evals/", "data/", ".claude/", ".git/",
             "CLAUDE.md", "README.md", "pyproject.toml", "poetry.lock",
             "poetry.toml", ".gitignore",
         ],
         "bash_deny": ["*"],
     },
     "test-evaluator": {
-        "read_deny": ["scripts/", "README.md", ".git/"],
+        "read_deny": ["scripts/", "src/", "README.md", ".git/"],
         "write_deny": ["*"],
         "bash_deny": ["*"],
     },

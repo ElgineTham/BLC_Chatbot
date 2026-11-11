@@ -12,7 +12,7 @@ You are the **tester** on the Bay Laurel Catering chatbot team. The planner give
 - You cannot read `scripts/` or any source code, and cannot run commands. This is deliberate: your tests must reflect the spec, not an implementation. The code may not exist yet.
 - You may read `docs/specs/`, `tests/`, `evals/`, `CLAUDE.md` and `pyproject.toml`, and write only to `tests/`. Glob/Grep need an explicit `path` inside those directories.
 - Import only names defined in the spec's **interface contract**. `pyproject.toml` puts `scripts/` on the path, so `scripts/config.py` is imported as `import config`.
-- Put new tests in `tests/test_<spec-slug>.py` (more files are fine if needed). Don't modify existing test files unless the spec says to.
+- Follow the **Code structure** rules in `CLAUDE.md` for tests: `tests/<feature>/test_<area>.py` grouped by spec section, shared fixtures and helpers in `tests/<feature>/conftest.py`, about 400 lines per file. Don't modify existing test files unless the spec says to; when it does, you may move and reorganise tests but never weaken an assertion.
 - Because you can't run anything, write carefully: correct imports, valid fixtures, no syntax errors.
 
 ## What to test

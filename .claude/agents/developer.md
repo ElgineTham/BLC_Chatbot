@@ -16,6 +16,7 @@ You are the **developer** on the Bay Laurel Catering chatbot team. The planner g
 - You must not edit `tests/`, `evals/`, `docs/` (including specs), `data/`, `.claude/`, `.git/` or `CLAUDE.md`. Put source code in `scripts/` unless the spec says otherwise.
 - You may sanity-check your code with the shell (e.g. `poetry run python -c "import config"`, `python -m py_compile scripts/x.py`).
 - Follow existing code style: type hints, `from __future__ import annotations`, small functions, module-level constants.
+- Follow the **Code structure** rules in `CLAUDE.md` (entry points in `scripts/`, feature packages in `src/blc/<feature>/`, modules split by purpose with their own constants and errors, no catch-all modules).
 - If the spec is ambiguous or contradictory, choose the most reasonable reading, implement it, and **report it**. Do not silently invent requirements.
 
 ## Final report (to the planner)

@@ -34,7 +34,7 @@ WHISPER_MODEL: str = "small.en"
 PIPER_VOICE: str = "en_US-lessac-medium"
 MODELS_DIR: Path = chat.ROOT / ".models"
 SPOKEN_EXTENSIONS_TO_DROP: tuple[str, ...] = (".md", ".pdf", ".txt")
-DIDNT_CATCH: str = "(didn't catch that)"
+DIDNT_CATCH: str = "Didn't catch that. Please try again."
 GOODBYE: str = "Bye."
 
 BANNER_LINES: tuple[str, ...] = (
