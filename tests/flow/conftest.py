@@ -8,7 +8,7 @@ Fixtures (unit):
 - Scripted              scripted fake chat model (plain invoke list + bound invoke list)
 - FakeStore, Doc        fake store with similarity_search(query, k=...) and a Document builder
 - NoCallStore, NoCallLLM  objects that fail the test on any use
-- jparts, ai, tc        build router JSON replies, scripted AIMessages and tool-call dicts
+- ai, tc                build scripted AIMessages and tool-call dicts
 - full_trace            a TurnTrace holding every stage (for the formatters)
 
 Eval-only (AC-5): E1 to E21 cases, parametrisation, the real store/model (session scoped), and
@@ -125,11 +125,6 @@ def ai(content="", calls=()):
     return AIMessage(content=content, tool_calls=list(calls))
 
 
-def jparts(*parts):
-    """JSON router reply from (route, text) pairs."""
-    return json.dumps({"parts": [{"route": r, "text": t} for r, t in parts]})
-
-
 class _Bound:
     def __init__(self, owner):
         self.owner = owner
@@ -217,11 +212,6 @@ def _no_call_llm_fixture():
 @pytest.fixture(name="doc")
 def _doc_fixture():
     return doc
-
-
-@pytest.fixture(name="jparts")
-def _jparts_fixture():
-    return jparts
 
 
 @pytest.fixture(name="ai")

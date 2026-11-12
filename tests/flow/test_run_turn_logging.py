@@ -16,11 +16,10 @@ from blc.trace import format_trace
 from blc.tools.bev_tools import BEV_TOOL_NAME
 
 LOGGER = "blc.flow"
-DOCS_Q = "Where is the coffee?"
+DOCS_Q = "Where is the coffee?"  # spec 013: no number, no item word: no router call
 TOOL_Q = "How many cambros for 6 gallons of peach tea?"
-LEMON_Q = "Where are lemons kept?"
 CUPS_Q = "How many cold cups for 45 guests?"
-BOTH_Q = LEMON_Q + " " + CUPS_Q
+BOTH_Q = DOCS_Q + " " + CUPS_Q  # spec 013: only the TOOL part goes to the model (one letter reply)
 TWO_TOOL_Q = TOOL_Q + " " + CUPS_Q
 VALID_CAMBROS = {"item": "cambros", "drinks": ["peach tea"], "gallons": [6]}
 VALID_CUPS = {"item": "cups", "drinks": ["lemonade"], "guests": 45}
@@ -59,45 +58,45 @@ def stage_of(record):
 
 # ---------------------------------------------------------------- EC-14 order and format
 
-def test_ec14_docs_question_records_in_order(run, Scripted, jparts):
+def test_ec14_docs_question_records_in_order(run, Scripted):
     """Covers: AC-3 (right), EC-14. DOCS question: [prompt], [retrieval], [route], [reply], each at INFO, nothing else on the logger."""
-    llm = Scripted([jparts(("DOCS", DOCS_Q)), "Under the machine."])
+    llm = Scripted(["Under the machine."])
     _, records = run(llm)
     assert [stage_of(r) for r in records] == ["prompt", "retrieval", "route", "reply"]
     assert all(r.levelno == logging.INFO for r in records)
     assert all(r.getMessage().startswith(f"[{stage_of(r)}]") for r in records)
 
 
-def test_ec14_tool_question_has_a_tool_record(run, Scripted, jparts, ai, tc):
+def test_ec14_tool_question_has_a_tool_record(run, Scripted, ai, tc):
     """Covers: AC-3 (right), EC-14. TOOL question: one [tool] record between [route] and [reply]."""
-    llm = Scripted([jparts(("TOOL", TOOL_Q)), "Bring two."], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
+    llm = Scripted(["T", "Bring two."], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
     _, records = run(llm, question=TOOL_Q)
     assert [stage_of(r) for r in records] == ["prompt", "retrieval", "route", "tool", "reply"]
 
 
-def test_ec14_one_tool_record_per_tool_part(run, Scripted, jparts, ai, tc):
+def test_ec14_one_tool_record_per_tool_part(run, Scripted, ai, tc):
     """Covers: AC-3 (boundary), EC-14. Two TOOL parts give two [tool] records."""
     llm = Scripted(
-        [jparts(("TOOL", TOOL_Q), ("TOOL", CUPS_Q)), "Done."],
+        ["TT", "Done."],
         bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS, "a")]), ai("", [tc(BEV_TOOL_NAME, VALID_CUPS, "b")])],
     )
     _, records = run(llm, question=TWO_TOOL_Q)
     assert [stage_of(r) for r in records] == ["prompt", "retrieval", "route", "tool", "tool", "reply"]
 
 
-def test_ec14_both_question(run, Scripted, jparts, ai, tc):
+def test_ec14_both_question(run, Scripted, ai, tc):
     """Covers: AC-3 (right), EC-14. BOTH question: one [tool] record for the one TOOL part."""
-    llm = Scripted([jparts(("DOCS", LEMON_Q), ("TOOL", CUPS_Q)), "Done."],
+    llm = Scripted(["T", "Done."],
                    bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CUPS)])])
     _, records = run(llm, question=BOTH_Q)
     assert [stage_of(r) for r in records] == ["prompt", "retrieval", "route", "tool", "reply"]
 
 
-def test_ec14_no_reply_record_when_not_generated(run, Scripted, jparts, ai, tc):
+def test_ec14_no_reply_record_when_not_generated(run, Scripted, ai, tc):
     """Covers: AC-3 (wrong), EC-14. With generate=False there is no [reply] record, for DOCS and for TOOL questions."""
-    _, docs_records = run(Scripted([jparts(("DOCS", DOCS_Q))]), generate=False)
+    _, docs_records = run(Scripted([]), generate=False)
     assert [stage_of(r) for r in docs_records] == ["prompt", "retrieval", "route"]
-    llm = Scripted([jparts(("TOOL", TOOL_Q))], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
+    llm = Scripted(["T"], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
     _, tool_records = run(llm, question=TOOL_Q, generate=False)
     assert [stage_of(r) for r in tool_records] == ["prompt", "retrieval", "route", "tool"]
 
@@ -113,9 +112,9 @@ def test_ec14_empty_store_logs_only_stages_that_ran(run, Scripted, FakeStore):
     assert [stage_of(r) for r in no_gen] == ["prompt", "retrieval"]
 
 
-def test_ec14_stage_text_matches_format_trace_sections(run, Scripted, jparts, ai, tc):
+def test_ec14_stage_text_matches_format_trace_sections(run, Scripted, ai, tc):
     """Covers: AC-3 (right), EC-14, spec 4.1. Each record carries the text of that stage's section in format_trace (every non-header line of the section is in the record's message)."""
-    llm = Scripted([jparts(("DOCS", LEMON_Q), ("TOOL", CUPS_Q)), "All done zzreply."],
+    llm = Scripted(["T", "All done zzreply."],
                    bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CUPS)])])
     trace, records = run(llm, question=BOTH_Q)
     sections, current = {}, None
@@ -133,15 +132,15 @@ def test_ec14_stage_text_matches_format_trace_sections(run, Scripted, jparts, ai
             assert line in by_stage[name], f"[{name}] record lacks the line {line!r}"
 
 
-def test_ec14_prompt_record_shows_the_question(run, Scripted, jparts):
+def test_ec14_prompt_record_shows_the_question(run, Scripted):
     """Covers: AC-3 (right), EC-14. The [prompt] record contains the question."""
-    _, records = run(Scripted([jparts(("DOCS", DOCS_Q)), "ok"]))
+    _, records = run(Scripted(["ok"]))
     assert DOCS_Q in records[0].getMessage()
 
 
-def test_ec14_nothing_printed(run, Scripted, jparts, ai, tc, capsys):
+def test_ec14_nothing_printed(run, Scripted, ai, tc, capsys):
     """Covers: AC-3 (wrong), EC-14, NFR-4. Logging uses the logging module: nothing goes to stdout or stderr."""
-    llm = Scripted([jparts(("TOOL", TOOL_Q)), "ok"], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
+    llm = Scripted(["T", "ok"], bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
     run(llm, question=TOOL_Q)
     out = capsys.readouterr()
     assert out.out == "" and out.err == ""
@@ -157,11 +156,11 @@ def test_ec14_blank_question_logs_nothing(caplog, NoCallStore, NoCallLLM):
 
 # ---------------------------------------------------------------- EC-15 answer_turn unchanged
 
-def test_ec15_answer_turn_docs(monkeypatch, bev_tool, Scripted, jparts, FakeStore, docs):
+def test_ec15_answer_turn_docs(monkeypatch, bev_tool, Scripted, FakeStore, docs):
     """Covers: AC-2 (right), EC-15. answer_turn for a DOCS question returns the reply, the history with the new pair, and the retrieved docs."""
     monkeypatch.setattr(chat, "CHAT_TOOLS", [bev_tool], raising=False)
     store = FakeStore(docs)
-    llm = Scripted([jparts(("DOCS", DOCS_Q)), "Under the machine."])
+    llm = Scripted(["Under the machine."])
     history = list(HISTORY)
     result = chat.answer_turn(store, llm, history, DOCS_Q)
     assert isinstance(result, chat.TurnResult)
@@ -174,10 +173,10 @@ def test_ec15_answer_turn_docs(monkeypatch, bev_tool, Scripted, jparts, FakeStor
     assert history == HISTORY
 
 
-def test_ec15_answer_turn_tool(monkeypatch, bev_tool, Scripted, jparts, ai, tc, FakeStore, docs):
+def test_ec15_answer_turn_tool(monkeypatch, bev_tool, Scripted, ai, tc, FakeStore, docs):
     """Covers: AC-2 (right), EC-15. answer_turn for a TOOL question returns the final reply, the grown history and the retrieved docs."""
     monkeypatch.setattr(chat, "CHAT_TOOLS", [bev_tool], raising=False)
-    llm = Scripted([jparts(("TOOL", TOOL_Q)), "Bring two cambros."],
+    llm = Scripted(["T", "Bring two cambros."],
                    bound=[ai("", [tc(BEV_TOOL_NAME, VALID_CAMBROS)])])
     result = chat.answer_turn(FakeStore(docs), llm, [], TOOL_Q)
     assert result.reply == "Bring two cambros."

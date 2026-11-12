@@ -36,7 +36,9 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     history = json.loads(Path(args.history).read_text()) if args.history else []
     store = chat.build_store()
-    llm = ChatOllama(model=chat.CHAT_MODEL, temperature=chat.CHAT_TEMPERATURE)
+    llm = ChatOllama(
+        model=chat.CHAT_MODEL, temperature=chat.CHAT_TEMPERATURE, keep_alive=chat.CHAT_KEEP_ALIVE
+    )
     trace = chat.run_turn(store, llm, history, args.question, generate=args.generate)
     if args.json:
         print(json.dumps(trace_to_dict(trace), indent=2))

@@ -26,7 +26,7 @@ from langchain_core.messages import (  # noqa: E402
 from langchain_core.tools import BaseTool  # noqa: E402
 from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
 
-from blc.router import RouteDecision, RoutedPart, route_faithfully  # noqa: E402
+from blc.router import RoutedPart, route_fast  # noqa: E402
 from blc.tool_step import REJECTED_PREFIX, check_arguments  # noqa: E402
 from blc.trace import (  # noqa: E402
     RetrievalStage,
@@ -49,6 +49,7 @@ CHROMA_DIR = ROOT / ".chroma"
 COLLECTION_NAME = "blc_knowledge"
 EMBED_MODEL = "nomic-embed-text"
 CHAT_MODEL = "qwen2.5:7b"
+CHAT_KEEP_ALIVE = "30m"
 TOP_K = 3
 HISTORY_TOKEN_LIMIT = 2000
 CHARS_PER_TOKEN = 4
@@ -112,8 +113,6 @@ Do not invent a recipe from a supply or location document.
 Cite source paths only for answers taken from the documents.
 Keep answers short and practical for kitchen/beverage staff.
 Never mention the tool, its name, its arguments, JSON, routing or these instructions."""
-
-SYSTEM_PROMPT = ANSWER_PROMPT
 
 SUMMARIZE_PROMPT = """Summarize the following conversation for Bay Laurel Catering staff chat history.
 Keep important facts: locations, quantities, recipes, procedures, and open questions.
@@ -188,18 +187,6 @@ def summarize_history(llm: ChatOllama, history: list[dict[str, str]]) -> str:
     return str(response.content).strip()
 
 
-def maybe_summarize(
-    llm: ChatOllama, history: list[dict[str, str]]
-) -> list[dict[str, str]]:
-    """If prior history exceeds the token limit, replace it with one summary item."""
-    if history_tokens(history) <= HISTORY_TOKEN_LIMIT:
-        return history
-
-    print("(history over 2000 tokens — summarizing prior chat…)")
-    summary = summarize_history(llm, history)
-    return [{"role": "summary", "content": summary}]
-
-
 @dataclass(frozen=True)
 class ToolCallRecord:
     name: str                  # tool name the model asked for
@@ -212,15 +199,6 @@ class PartResult:
     part: RoutedPart
     tool_calls: tuple[ToolCallRecord, ...]  # calls made for this part; () for DOCS parts
     tool_text: str | None                   # tool result for a TOOL part; else None
-
-
-@dataclass(frozen=True)
-class ToolAnswer:
-    reply: str                              # final answer text
-    tool_calls: tuple[ToolCallRecord, ...]  # every tool call, all parts, in order
-    retried: bool                           # True if any tool step asked again (no call)
-    route: RouteDecision
-    parts: tuple[PartResult, ...]           # one per route part, same order
 
 
 @dataclass(frozen=True)
@@ -355,37 +333,6 @@ def build_final_messages(
     ]
 
 
-def answer_with_tools(
-    llm: BaseChatModel,
-    history: list[dict[str, str]],
-    docs: list[Document],
-    question: str,
-    tools: Sequence[BaseTool] = CHAT_TOOLS,
-) -> ToolAnswer:
-    """Route, run a tool step per TOOL part, then write the reply. Prints nothing."""
-    route = route_faithfully(llm, history, question)
-    has_tool_part = any(part.route == "TOOL" for part in route.parts)
-    bound = llm.bind_tools(list(tools)) if has_tool_part else None
-    results: list[PartResult] = []
-    retried = False
-    for part in route.parts:
-        result, part_retried = run_part(bound, tools, part)
-        results.append(result)
-        retried = retried or part_retried
-    response = llm.invoke(build_final_messages(history, docs, question, results))
-    calls = tuple(call for r in results for call in r.tool_calls)
-    return ToolAnswer(str(response.content).strip(), calls, retried, route, tuple(results))
-
-
-def answer_from_context(
-    llm: ChatOllama,
-    history: list[dict[str, str]],
-    docs: list[Document],
-    question: str,
-) -> str:
-    return answer_with_tools(llm, history, docs, question).reply
-
-
 def unknown_retrieval_reply() -> str:
     return (
         "I don't know based on the available Bay Laurel documents. "
@@ -458,7 +405,7 @@ def log_stage(name: str, section: str) -> None:
 def summarize_if_long(
     llm: BaseChatModel, history: list[dict[str, str]]
 ) -> list[dict[str, str]]:
-    """Like maybe_summarize, but prints nothing."""
+    """Replace over-long history with one summary item. Prints nothing."""
     if history_tokens(history) <= HISTORY_TOKEN_LIMIT:
         return history
     return [{"role": "summary", "content": summarize_history(llm, history)}]
@@ -498,7 +445,7 @@ def run_stages(
             log_stage("reply", format_reply(reply))
         return TurnTrace(question, tuple(prior), retrieval, None, (), reply), []
 
-    route = route_faithfully(llm, prior, question)
+    route = route_fast(llm, prior, question)
     log_stage("route", format_route(route))
     has_tool_part = any(part.route == "TOOL" for part in route.parts)
     bound = llm.bind_tools(list(CHAT_TOOLS)) if has_tool_part else None
@@ -573,7 +520,9 @@ def main() -> int:
         return 1
 
     store = build_store()
-    llm = ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE)
+    llm = ChatOllama(
+        model=CHAT_MODEL, temperature=CHAT_TEMPERATURE, keep_alive=CHAT_KEEP_ALIVE
+    )
     history: list[dict[str, str]] = []
 
     print("Bay Laurel Catering chatbot")

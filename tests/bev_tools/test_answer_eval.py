@@ -16,15 +16,16 @@ LEAK_WORDS = ("calculate_bev_item", "tool", "instruction", "json", '"item"', "ar
 def test_answer_case(store, chat_llm, eval_case):
     """Covers: AC-11 (right/wrong per case), AC-12 (wrong), NFR-4 (skip). judge_answer passes the reply and the reply leaks no tool or instruction wording."""
     from blc.judge import judge_answer
-    from chat import answer_with_tools, retrieve
+    from chat import run_turn
 
     question = eval_case["question"]
-    docs = retrieve(store, question)
-    out = answer_with_tools(chat_llm, eval_case["history"], docs, question)
+    out = run_turn(store, chat_llm, eval_case["history"], question)  # spec 014: the real flow
+    calls = [c for stage in out.tools for c in stage.calls]
+    retried = any(stage.retried for stage in out.tools)
     verdict = judge_answer(question, eval_case["reference"], out.reply)
     context = (
         f"{eval_case['id']}: Reply: {out.reply!r}. "
-        f"Tool calls: {[(c.name, c.args) for c in out.tool_calls]}. Retried: {out.retried}"
+        f"Tool calls: {[(c.name, c.args) for c in calls]}. Retried: {retried}"
     )
     assert verdict.passed, f"judge FAIL. Reason: {verdict.reason!r}. {context}"
 

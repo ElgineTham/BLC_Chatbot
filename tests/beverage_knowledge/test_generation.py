@@ -8,13 +8,11 @@ pytestmark = pytest.mark.eval
 
 
 def _answer(store, llm, question: str) -> str:
-    """Answer pipeline of spec section 3, empty history."""
-    from chat import answer_from_context, retrieve, unknown_retrieval_reply
+    """Answer through the real flow (spec 014), empty history. run_turn retrieves, routes and answers,
+    and gives the unknown-retrieval reply itself when nothing is retrieved."""
+    from chat import run_turn
 
-    docs = retrieve(store, question)
-    if not docs:
-        return unknown_retrieval_reply()
-    return answer_from_context(llm, [], docs, question)
+    return run_turn(store, llm, [], question).reply
 
 
 def test_generation_case(store, chat_llm, calibrated_judge, generation_case):

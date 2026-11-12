@@ -3,9 +3,21 @@
 Revision 5: EXIT_COMMANDS / EXIT_FILLERS, normalize_utterance, is_exit_utterance and
 chat.main's new exit decision (EC-22, AC-28, AC-29) are tested at the end of this file.
 
-Unit tests only. Ollama and Chroma are faked; module-level pipeline functions in
-`chat` (all named in the spec's interface contract) are monkeypatched where the
-test is about wiring rather than about those functions.
+Spec 014: the answer_turn tests no longer patch `answer_from_context` / `maybe_summarize` (deleted).
+They run the real flow (answer_turn -> run_turn -> run_stages) with a fake store
+(similarity_search(query, k=...)) and a scripted fake model, and read what the model was sent
+(ScriptLLM.invocations) to check the same things the old wiring assertions checked:
+  - "answer_from_context got (llm, prior, docs, q)"  -> the final model call holds the history, the
+    retrieved chunk text and the question;
+  - "maybe_summarize(llm, history) ran once"          -> a short history gives exactly one model call
+    (no summary call); a long one gives a summary call first;
+  - "the summarized history (not the raw one) is what goes on" -> the final call holds the summary text
+    and none of the raw long history.
+Spec 014 EC-6: each script holds exactly the model calls the flow makes. Most questions are DOCS questions
+with no number and no item word (spec 013: no router call), so the replies are [final] or, for a long
+history, [summary, final]. "Where is sugar?" has an item word, so its script is [summary, "D", final].
+
+Unit tests only. Ollama and Chroma are faked.
 """
 
 from __future__ import annotations
@@ -16,6 +28,7 @@ from types import SimpleNamespace
 
 import pytest
 from langchain_core.documents import Document
+from langchain_core.messages import AIMessage
 
 import chat
 
@@ -41,16 +54,20 @@ class RecordingObject:
         return _call
 
 
-class FakeLLM:
-    """llm with invoke(messages) -> object with .content."""
+class ScriptLLM:
+    """Scripted chat model: each invoke pops the next reply (a str becomes an AIMessage) and records the
+    messages. Has no bind_tools, so any tool step would fail the test."""
 
-    def __init__(self, content: str = "SUMMARY-XYZ") -> None:
-        self.content = content
-        self.calls: list = []
+    def __init__(self, *replies) -> None:
+        self.script = list(replies)
+        self.invocations: list = []
 
     def invoke(self, messages, *args, **kwargs):
-        self.calls.append(messages)
-        return SimpleNamespace(content=self.content)
+        self.invocations.append(list(messages))
+        if not self.script:
+            raise AssertionError("llm.invoke was called more times than scripted")
+        reply = self.script.pop(0)
+        return AIMessage(content=reply) if isinstance(reply, str) else reply
 
 
 class FakeStore:
@@ -63,44 +80,8 @@ class FakeStore:
         return list(self.docs)
 
 
-def _two_args(args, kwargs):
-    vals = list(args) + list(kwargs.values())
-    return vals[0], vals[1]
-
-
-@pytest.fixture
-def pipeline(monkeypatch):
-    """Patch maybe_summarize / retrieve / answer_from_context with recorders.
-
-    Returns a namespace whose attributes control and record behaviour.
-    """
-    ns = SimpleNamespace(
-        prior=None,  # if None, maybe_summarize returns the history it got
-        docs=[],
-        reply="ANSWER-REPLY",
-        summarize_calls=[],
-        retrieve_calls=[],
-        answer_calls=[],
-    )
-
-    def fake_maybe_summarize(*args, **kwargs):
-        llm, history = _two_args(args, kwargs)
-        ns.summarize_calls.append((llm, copy.deepcopy(history)))
-        return ns.prior if ns.prior is not None else history
-
-    def fake_retrieve(*args, **kwargs):
-        store, q = _two_args(args, kwargs)
-        ns.retrieve_calls.append((store, q))
-        return list(ns.docs)
-
-    def fake_answer_from_context(llm, history, docs, question):
-        ns.answer_calls.append((llm, copy.deepcopy(history), list(docs), question))
-        return ns.reply
-
-    monkeypatch.setattr(chat, "maybe_summarize", fake_maybe_summarize)
-    monkeypatch.setattr(chat, "retrieve", fake_retrieve)
-    monkeypatch.setattr(chat, "answer_from_context", fake_answer_from_context)
-    return ns
+def _text(messages) -> str:
+    return "\n".join(str(getattr(m, "content", "")) for m in messages)
 
 
 def _docs():
@@ -145,56 +126,56 @@ def test_turn_result_fields_and_frozen():
 # --------------------------------------------------------------------------- #
 
 
-def test_answer_turn_with_docs_returns_answer_docs_and_history(pipeline):
-    """Covers: AC-1 (right). reply comes from answer_from_context(llm, prior, docs, q),
-    docs is the retrieved list, history == prior + [user q, assistant reply]."""
-    store, llm = FakeStore(), FakeLLM()
-    docs = _docs()
-    pipeline.docs = docs
+def test_answer_turn_with_docs_returns_answer_docs_and_history():
+    """Covers: AC-1 (right). reply is the model's final reply, docs is the retrieved list,
+    history == prior + [user q, assistant reply]. The store is searched once with (q, TOP_K); the
+    model is called once (no summary call for a short history) and that call holds the history,
+    the retrieved text and the question."""
+    store = FakeStore(_docs())
+    llm = ScriptLLM("ANSWER-REPLY")
     history = _small_history()
 
     result = chat.answer_turn(store, llm, history, "Where is the coffee?")
 
     assert isinstance(result, chat.TurnResult)
     assert result.reply == "ANSWER-REPLY"
-    assert result.docs == docs
+    assert result.docs == _docs()
     assert result.history == history + [
         {"role": "user", "content": "Where is the coffee?"},
         {"role": "assistant", "content": "ANSWER-REPLY"},
     ]
-    # Wiring: summarize with (llm, history), retrieve with (store, q), answer once.
-    assert len(pipeline.summarize_calls) == 1
-    assert pipeline.summarize_calls[0][0] is llm
-    assert pipeline.retrieve_calls == [(store, "Where is the coffee?")]
-    assert len(pipeline.answer_calls) == 1
-    a_llm, a_hist, a_docs, a_q = pipeline.answer_calls[0]
-    assert a_llm is llm
-    assert a_hist == history
-    assert a_docs == docs
-    assert a_q == "Where is the coffee?"
+    assert store.calls == [("Where is the coffee?", chat.TOP_K)]
+    assert len(llm.invocations) == 1
+    sent = _text(llm.invocations[0])
+    assert "Hello! How can I help?" in sent  # the history
+    assert "Coffee is on shelf 2." in sent and "Sugar is in bin 4." in sent  # the docs
+    assert "Where is the coffee?" in sent  # the question
 
 
-def test_answer_turn_uses_prior_from_maybe_summarize(pipeline):
-    """Covers: AC-1 (right), §3.1 steps 2/4/5. The history returned by maybe_summarize
-    (not the raw input) is what goes to answer_from_context and into the new history."""
-    prior = [{"role": "system", "content": "PRIOR-SUMMARY"}]
-    pipeline.prior = prior
-    pipeline.docs = _docs()
-    history = _small_history()
+def test_answer_turn_uses_summarized_history_for_answer_and_history():
+    """Covers: AC-1 (right), §3.1 steps 2/4/5. For a long history the summary (not the raw input)
+    is what the answer call holds and what the returned history starts with."""
+    # EC-6: "Where is sugar?" has a pull sheet item word, so the flow makes a router call between the
+    # summary call and the final call: summary, router letter (D), final.
+    llm = ScriptLLM("PRIOR-SUMMARY", "D", "ANSWER-REPLY")
+    big = _big_history()
 
-    result = chat.answer_turn(FakeStore(), FakeLLM(), history, "Where is sugar?")
+    result = chat.answer_turn(FakeStore(_docs()), llm, big, "Where is sugar?")
 
-    assert pipeline.answer_calls[0][1] == prior
-    assert result.history == prior + [
+    assert len(llm.invocations) == 3  # summary call, router call, then the final call
+    final = _text(llm.invocations[-1])
+    assert "PRIOR-SUMMARY" in final
+    assert "catering menu details" not in final
+    assert "PRIOR-SUMMARY" in result.history[0]["content"]
+    assert result.history[1:] == [
         {"role": "user", "content": "Where is sugar?"},
         {"role": "assistant", "content": "ANSWER-REPLY"},
     ]
 
 
-def test_answer_turn_prints_nothing_under_limit(pipeline, capsys):
+def test_answer_turn_prints_nothing_under_limit(capsys):
     """Covers: §3.1 'answer_turn prints nothing itself' (right)."""
-    pipeline.docs = _docs()
-    chat.answer_turn(FakeStore(), FakeLLM(), _small_history(), "Where is the coffee?")
+    chat.answer_turn(FakeStore(_docs()), ScriptLLM("ok"), _small_history(), "Where is the coffee?")
     out, err = capsys.readouterr()
     assert out == ""
     assert err == ""
@@ -205,38 +186,31 @@ def test_answer_turn_prints_nothing_under_limit(pipeline, capsys):
 # --------------------------------------------------------------------------- #
 
 
-def test_answer_turn_no_docs_uses_unknown_reply(pipeline):
+def test_answer_turn_no_docs_uses_unknown_reply():
     """Covers: AC-2 (right), EC-13. No docs -> unknown_retrieval_reply(), docs == [],
-    answer_from_context not called, history gains user + assistant entries."""
-    pipeline.docs = []
-    llm = FakeLLM()
+    the model is never called, history gains user + assistant entries."""
+    llm = ScriptLLM()  # any invoke fails the test
     history = _small_history()
 
-    result = chat.answer_turn(FakeStore(), llm, history, "What is the wifi password?")
+    result = chat.answer_turn(FakeStore([]), llm, history, "What is the wifi password?")
 
     expected = chat.unknown_retrieval_reply()
     assert result.reply == expected
     assert result.docs == []
-    assert pipeline.answer_calls == []
+    assert llm.invocations == []
     assert result.history == history + [
         {"role": "user", "content": "What is the wifi password?"},
         {"role": "assistant", "content": expected},
     ]
 
 
-def test_answer_turn_no_docs_does_not_invoke_llm(monkeypatch):
-    """Covers: AC-2 (wrong path guarded). With real maybe_summarize under the limit and
-    no docs, the LLM's invoke is never called (LLM not asked for an answer)."""
-    monkeypatch.setattr(chat, "retrieve", lambda *a, **k: [])
-
-    def boom(*a, **k):
-        raise AssertionError("answer_from_context must not be called when no docs")
-
-    monkeypatch.setattr(chat, "answer_from_context", boom)
-    llm = FakeLLM()
-    result = chat.answer_turn(FakeStore(), llm, _small_history(), "Unknown thing?")
+def test_answer_turn_no_docs_does_not_invoke_llm():
+    """Covers: AC-2 (wrong path guarded). With a short history and no docs, the LLM is never
+    asked for an answer."""
+    llm = ScriptLLM()
+    result = chat.answer_turn(FakeStore([]), llm, _small_history(), "Unknown thing?")
     assert result.reply == chat.unknown_retrieval_reply()
-    assert llm.calls == []
+    assert llm.invocations == []
 
 
 # --------------------------------------------------------------------------- #
@@ -245,15 +219,16 @@ def test_answer_turn_no_docs_does_not_invoke_llm(monkeypatch):
 
 
 @pytest.mark.parametrize("with_docs", [True, False], ids=["docs", "no-docs"])
-def test_answer_turn_does_not_mutate_history_under_limit(pipeline, with_docs):
+def test_answer_turn_does_not_mutate_history_under_limit(with_docs):
     """Covers: AC-3 (right), §3.1 step 6. Under-limit and no-docs paths leave the
     caller's history list unchanged and return a different list object."""
-    pipeline.docs = _docs() if with_docs else []
+    store = FakeStore(_docs() if with_docs else [])
+    llm = ScriptLLM("ok") if with_docs else ScriptLLM()
     history = _small_history()
     snapshot = copy.deepcopy(history)
     history_id = id(history)
 
-    result = chat.answer_turn(FakeStore(), FakeLLM(), history, "Where is the coffee?")
+    result = chat.answer_turn(store, llm, history, "Where is the coffee?")
 
     assert history == snapshot
     assert len(history) == 2
@@ -261,28 +236,19 @@ def test_answer_turn_does_not_mutate_history_under_limit(pipeline, with_docs):
     assert id(history) == history_id
 
 
-def test_answer_turn_over_limit_summarizes_without_mutation(monkeypatch, capsys):
-    """Covers: AC-3 (boundary: over token limit), EC-14. Real maybe_summarize with a
-    fake llm: returned history starts with the summary item, ends with the new
-    user/assistant pair, caller's list is untouched, and the existing summarizing
-    message is still printed."""
-    answer_calls = []
-
-    def fake_answer(llm, history, docs, question):
-        answer_calls.append(copy.deepcopy(history))
-        return "ANSWER-REPLY"
-
-    monkeypatch.setattr(chat, "retrieve", lambda *a, **k: _docs())
-    monkeypatch.setattr(chat, "answer_from_context", fake_answer)
-
+def test_answer_turn_over_limit_summarizes_without_mutation(capsys):
+    """Covers: AC-3 (boundary: over token limit), EC-14. Real summarizing with a scripted llm:
+    returned history starts with the summary item, ends with the new user/assistant pair, caller's
+    list is untouched, the answer call holds the summary (not the raw history), and the existing
+    summarizing message is still printed."""
     history = _big_history()
     snapshot = copy.deepcopy(history)
-    llm = FakeLLM(content="SUMMARY-XYZ")
+    llm = ScriptLLM("SUMMARY-XYZ", "ANSWER-REPLY")
 
-    result = chat.answer_turn(FakeStore(), llm, history, "Where is the coffee?")
+    result = chat.answer_turn(FakeStore(_docs()), llm, history, "Where is the coffee?")
 
     assert history == snapshot, "caller's history must not be mutated"
-    assert llm.calls, "summarization should have asked the llm for a summary"
+    assert len(llm.invocations) == 2, "summarization should have asked the llm for a summary, then answered"
     first = result.history[0]
     assert isinstance(first, dict)
     assert "SUMMARY-XYZ" in first["content"]
@@ -291,20 +257,23 @@ def test_answer_turn_over_limit_summarizes_without_mutation(monkeypatch, capsys)
         {"role": "user", "content": "Where is the coffee?"},
         {"role": "assistant", "content": "ANSWER-REPLY"},
     ]
-    # prior passed to answer_from_context is the summarized history
-    assert answer_calls == [result.history[:-2]]
+    assert len(result.history) == 3  # summary, user, assistant
+    # the history the answer call saw is the summarized history
+    answer_call = _text(llm.invocations[-1])
+    assert "SUMMARY-XYZ" in answer_call
+    assert "catering menu details" not in answer_call
     out = capsys.readouterr().out
     assert "history over 2000 tokens" in out
 
 
-def test_answer_turn_over_limit_no_docs_does_not_mutate(monkeypatch):
+def test_answer_turn_over_limit_no_docs_does_not_mutate():
     """Covers: AC-3 (boundary: over limit + no docs). Caller history untouched,
     reply is the unknown-retrieval reply, summary item first."""
-    monkeypatch.setattr(chat, "retrieve", lambda *a, **k: [])
     history = _big_history()
     snapshot = copy.deepcopy(history)
+    llm = ScriptLLM("SUMMARY-XYZ")  # the summary call only; no answer call without docs
 
-    result = chat.answer_turn(FakeStore(), FakeLLM(content="SUMMARY-XYZ"), history, "Unknown?")
+    result = chat.answer_turn(FakeStore([]), llm, history, "Unknown?")
 
     assert history == snapshot
     assert "SUMMARY-XYZ" in result.history[0]["content"]
@@ -318,9 +287,9 @@ def test_answer_turn_over_limit_no_docs_does_not_mutate(monkeypatch):
 
 
 @pytest.mark.parametrize("question", ["", " ", "   ", "\n\t  "], ids=["empty", "space", "spaces", "ws-mix"])
-def test_answer_turn_empty_question_raises_before_any_call(pipeline, question):
+def test_answer_turn_empty_question_raises_before_any_call(question):
     """Covers: AC-4 (wrong), EC-15 (boundary: empty / whitespace-only).
-    ValueError and no store, llm or pipeline calls."""
+    ValueError and no store or llm calls; the history is unchanged."""
     store, llm = RecordingObject(), RecordingObject()
     history = _small_history()
     snapshot = copy.deepcopy(history)
@@ -330,27 +299,25 @@ def test_answer_turn_empty_question_raises_before_any_call(pipeline, question):
 
     assert store.accessed == []
     assert llm.accessed == []
-    assert pipeline.summarize_calls == []
-    assert pipeline.retrieve_calls == []
-    assert pipeline.answer_calls == []
     assert history == snapshot
 
 
-def test_answer_turn_padded_question_is_stripped_everywhere(pipeline):
+def test_answer_turn_padded_question_is_stripped_everywhere():
     """Covers: AC-4 (right), EC-15. Surrounding whitespace is stripped for retrieval,
     the answer prompt and history."""
-    pipeline.docs = _docs()
-    result = chat.answer_turn(FakeStore(), FakeLLM(), [], "  \tWhere is the coffee?\n ")
+    store = FakeStore(_docs())
+    llm = ScriptLLM("ok")
+    result = chat.answer_turn(store, llm, [], "  \tWhere is the coffee?\n ")
 
-    assert pipeline.retrieve_calls[0][1] == "Where is the coffee?"
-    assert pipeline.answer_calls[0][3] == "Where is the coffee?"
+    assert store.calls[0][0] == "Where is the coffee?"
+    assert "Where is the coffee?" in str(llm.invocations[0][-1].content)
+    assert "\tWhere" not in _text(llm.invocations[0])
     assert result.history[0] == {"role": "user", "content": "Where is the coffee?"}
 
 
-def test_answer_turn_single_char_question_accepted(pipeline):
+def test_answer_turn_single_char_question_accepted():
     """Covers: AC-4 (boundary: smallest non-empty question). One visible char is valid."""
-    pipeline.docs = _docs()
-    result = chat.answer_turn(FakeStore(), FakeLLM(), [], " ? ")
+    result = chat.answer_turn(FakeStore(_docs()), ScriptLLM("ANSWER-REPLY"), [], " ? ")
     assert result.history[0] == {"role": "user", "content": "?"}
     assert result.reply == "ANSWER-REPLY"
 

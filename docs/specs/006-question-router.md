@@ -2,6 +2,7 @@
 
 - **Status:** approved
 - **Date:** 2026-11-11
+- **Superseded in part (2026-11-12):** The router (§3.1, §4.1, §4.2) and the chat-flow functions `answer_with_tools` and `answer_from_context` (§3.2) are superseded by spec 013 (router) and spec 011 (`run_turn`); removed by spec 014. The tool step (§4.3) and the final call (§4.5) still apply.
 
 ## 1. Goal
 Today one model call reads the documents, decides whether to call `calculate_bev_item`, fills in its arguments and writes the answer. On spec 005's evals the model sent recipe questions to the tool, did not call it for supply questions, worked guests out into gallons itself from the rules document, invented amounts and named the tool in replies. This spec splits each answer into simple steps:

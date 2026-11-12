@@ -2,7 +2,7 @@
 
 Marked eval. Skips (does not fail) when Ollama is not running or the chat model is missing (EC-1).
 Spec 009 AC-5: pass threshold is all 28 cases S1 to S28. Only run_tool_step and
-run_bev_tool are called; the router, retrieval and answer_with_tools are never used (AC-4).
+run_bev_tool are called; the router, retrieval and run_turn are never used (AC-4).
 Reads the real menu and rules under data/pull_sheet/; writes nothing (EC-2).
 """
 

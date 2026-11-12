@@ -2,6 +2,7 @@
 
 - **Status:** approved
 - **Date:** 2026-11-11
+- **Superseded in part (2026-11-12):** This whole spec is superseded by spec 013 (the router no longer rewrites text) and its code was removed by spec 014. Kept as history.
 
 ## 1. Goal
 A diagnostic of the router on `qwen2.5:7b` (after spec 007) showed it changes the meaning of questions before the tool step sees them:

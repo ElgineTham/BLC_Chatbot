@@ -87,13 +87,12 @@ def _check_item_call(case, call, run_bev_tool, bev_name):
 def test_tool_choice(store, chat_llm, eval_case):
     """Covers: AC-10 (right/wrong per case), NFR-4 (skip). The real model's tool calls match the Tool column for every case T1 to T23."""
     from blc.tools.bev_tools import BEV_TOOL_NAME, run_bev_tool
-    from chat import answer_with_tools, retrieve
+    from chat import run_turn
 
     case = eval_case
     question = case["question"]
-    docs = retrieve(store, question)
-    out = answer_with_tools(chat_llm, case["history"], docs, question)
-    calls = out.tool_calls
+    out = run_turn(store, chat_llm, case["history"], question)  # spec 014: the real flow
+    calls = [c for stage in out.tools for c in stage.calls]
     names = [(c.name, c.args) for c in calls]
 
     if case["kind"] == "none":

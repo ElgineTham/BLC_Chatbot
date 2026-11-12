@@ -38,7 +38,6 @@ from voice_chat import (
     is_exit_command,
     is_too_short_or_silent,
     join_segments,
-    normalize_command,
     speakable_text,
     voice_turn,
 )
@@ -848,27 +847,8 @@ def test_output_tidy_after_label_handling(answer):
 
 
 # --------------------------------------------------------------------------- #
-# AC-11: normalize_command / is_exit_command (EC-10)
+# AC-11: is_exit_command (EC-10)  (spec 014: normalize_command was deleted)
 # --------------------------------------------------------------------------- #
-
-
-@pytest.mark.parametrize(
-    "text,expected",
-    [
-        ("Bye.", "bye"),
-        (" EXIT! ", "exit"),
-        ("Quit?", "quit"),
-        ("...!!  Hello, World ?!", "hello, world"),
-        ("bye, where is the coffee", "bye, where is the coffee"),
-        ("", ""),
-        ("  ?!. ", ""),
-        ("Inner  Spaces", "inner  spaces"),
-    ],
-)
-def test_normalize_command(text, expected):
-    """Covers: AC-11 (right + boundary: empty/punctuation-only), EC-10. Casefold and strip
-    outer whitespace/punctuation repeatedly; inner text untouched."""
-    assert normalize_command(text) == expected
 
 
 @pytest.mark.parametrize("text", ["Bye.", " EXIT! ", "Quit?", "bye", "QUIT", "\texit\n"])
@@ -962,12 +942,10 @@ def test_is_exit_command_looks_up_chat_is_exit_utterance_at_call_time(monkeypatc
     assert seen == ["banana", "bye"]
 
 
-def test_normalize_command_not_used_for_exit_decision(monkeypatch):
-    """Covers: AC-28 (wrong), §10 Rev 5 'normalize_command ... no longer used for the
-    exit decision'. Breaking normalize_command does not change is_exit_command."""
-    monkeypatch.setattr(voice_chat, "normalize_command", lambda text: "bye")
-    assert is_exit_command("Where is the coffee?") is False
-    assert is_exit_command("Goodbye.") is True
+def test_normalize_command_no_longer_exists():
+    """Covers: spec 014 §4.3 (wrong). voice_chat.normalize_command was deleted (unused;
+    is_exit_command does the work)."""
+    assert not hasattr(voice_chat, "normalize_command")
 
 
 # --------------------------------------------------------------------------- #
@@ -1575,18 +1553,18 @@ def test_voice_turn_only_sourceless_docs(monkeypatch):
 
 
 def test_voice_turn_no_docs_speaks_unknown_reply(monkeypatch, capsys):
-    """Covers: EC-13 (right), AC-2 via voice. Real chat.answer_turn with retrieve faked to
-    return []: unknown-retrieval reply is printed and spoken unchanged, history updated."""
-    monkeypatch.setattr(chat, "retrieve", lambda *a, **k: [])
+    """Covers: EC-13 (right), AC-2 via voice. Real chat.answer_turn (the real flow) with a
+    store that finds nothing: unknown-retrieval reply is printed and spoken unchanged,
+    history updated, and the model is never invoked (FakeLLM.invoke would fail the test)."""
 
-    def no_answer(*a, **k):
-        raise AssertionError("answer_from_context must not be called")
+    class EmptyStore:
+        def similarity_search(self, query, k=4, *a, **kw):
+            return []
 
-    monkeypatch.setattr(chat, "answer_from_context", no_answer)
     unknown = chat.unknown_retrieval_reply()
     sp = FakeSpeaker()
 
-    result = voice_turn(FakeStore(), FakeLLM(), [], FakeRecorder([good_audio()]),
+    result = voice_turn(EmptyStore(), FakeLLM(), [], FakeRecorder([good_audio()]),
                         FakeTranscriber(["What is the wifi password?"]), sp)
 
     assert result.outcome is TurnOutcome.ANSWERED

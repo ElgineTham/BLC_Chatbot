@@ -1,4 +1,4 @@
-"""Shared setup for spec 006 (question router). Written from the spec only.
+"""Shared setup for the router and chat-flow tests (specs 006, 013, 014). Written from the spec only.
 
 Unit tests: no Ollama, no Chroma, no network, nothing read under data/.
 Helpers are exposed as fixtures so test files never import this module.
@@ -6,10 +6,13 @@ Helpers are exposed as fixtures so test files never import this module.
 Fixtures:
 - catalog / bev_tool   the spec 005 Appendix A catalog (written to tmp_path) and make_bev_tool(catalog)
 - Scripted             class: scripted fake chat model (plain invoke list + bound invoke list)
+- RouterFake           class: scripted router model with only `invoke`
+- FakeStore            fake store with similarity_search(query, k=...)
+- run_turn_with        run_turn on a fake store with the given tools patched into chat.CHAT_TOOLS
 - ai, tc               build scripted AIMessages and tool-call dicts
 - text_of              join the content of a message list into one string
-- router_case          (eval only) parametrized over R1 to R14
-- chat_llm             (eval only) real ChatOllama; skips when Ollama is not running
+- make_tool            recording fake tool
+- fast_llm             (eval only) real ChatOllama with keep_alive; skips when Ollama is not running
 """
 
 from __future__ import annotations
@@ -140,7 +143,7 @@ class _Bound:
 
 
 class Scripted:
-    """llm.invoke(messages) pops `plain` replies (router first, final last); strings become AIMessages.
+    """llm.invoke(messages) pops `plain` replies (router first when needed, final last); strings become AIMessages.
     llm.bind_tools(tools) returns an object whose invoke pops `bound` replies (tool steps).
     With repeat_last=True the last bound reply is returned forever (for the round limit).
     Records: plain_invocations, bound_invocations (message-list snapshots), bind_calls (tool lists)."""
@@ -185,9 +188,16 @@ class RouterFake:
         return AIMessage(content=reply) if isinstance(reply, str) else reply
 
 
-def jparts(*parts):
-    """JSON router reply from (route, text) pairs."""
-    return json.dumps({"parts": [{"route": r, "text": t} for r, t in parts]})
+class FakeStore:
+    """similarity_search(query, k=...) -> the fixed docs. Records (query, k)."""
+
+    def __init__(self, docs=()):
+        self.docs = list(docs)
+        self.calls = []
+
+    def similarity_search(self, query, k=4, *args, **kwargs):
+        self.calls.append((query, k))
+        return list(self.docs)
 
 
 @pytest.fixture(name="RouterFake")
@@ -195,14 +205,14 @@ def _router_fake_fixture():
     return RouterFake
 
 
-@pytest.fixture(name="jparts")
-def _jparts_fixture():
-    return jparts
-
-
 @pytest.fixture(name="Scripted")
 def _scripted_fixture():
     return Scripted
+
+
+@pytest.fixture(name="FakeStore")
+def _fake_store_fixture():
+    return FakeStore
 
 
 @pytest.fixture(name="ai")
@@ -221,6 +231,19 @@ def _text_of_fixture():
 
 
 @pytest.fixture
+def run_turn_with(monkeypatch, FakeStore):
+    """run_turn_with(llm, question, tools, docs, history=None, generate=True) -> TurnTrace.
+    Patches chat.CHAT_TOOLS to `tools` and passes a FakeStore(docs) to the real chat.run_turn."""
+    import chat
+
+    def _run(llm, question, tools, docs, history=None, generate=True):
+        monkeypatch.setattr(chat, "CHAT_TOOLS", list(tools), raising=False)
+        return chat.run_turn(FakeStore(docs), llm, [] if history is None else history, question, generate=generate)
+
+    return _run
+
+
+@pytest.fixture
 def make_tool():
     """make_tool(name, result="tool-result") -> (tool, calls); calls records each argument dict."""
     from langchain_core.tools import StructuredTool
@@ -236,72 +259,6 @@ def make_tool():
         return StructuredTool.from_function(func=_fn, name=name, description="fake tool for tests"), calls
 
     return _make
-
-
-# --------------------------------------------------------------------------
-# Router eval cases (spec 006 section 6). routes: list of acceptable route tuples.
-# --------------------------------------------------------------------------
-
-ROUTER_CASES = [
-    {"id": "R1", "question": "How many cambros do I need to bring for 7 gallons of lemonade?", "history": [], "routes": [("TOOL",)]},
-    {"id": "R2", "question": "How many oz of lemonade concentrate do I need to make 5 gallons of lemonade?", "history": [], "routes": [("DOCS",)]},
-    {"id": "R3", "question": "Where is the coffee, and how many gallons of coffee do I need for 75 people?", "history": [], "routes": [("DOCS", "TOOL")]},
-    {"id": "R4", "question": "What's in the coffee, decaf, tea, iced water & juice package?", "history": [], "routes": [("DOCS",)]},
-    {"id": "R5", "question": "What do I put 7 gallons of lemonade in?", "history": [], "routes": [("TOOL",)]},
-    {"id": "R6", "question": "Do I need sugar for coffee?", "history": [], "routes": [("TOOL",)]},
-    {"id": "R7", "question": "What do I need to bring for coffee for 50 guests?", "history": [], "routes": [("TOOL",)]},
-    {"id": "R8", "question": "The BEO just says coffee. Is that regular or decaf?", "history": [], "routes": [("DOCS",)]},
-    {"id": "R9", "question": "How many gallons of hot chocolate do I need for 50 guests?", "history": [], "routes": [("DOCS",), ("TOOL",)]},
-    {"id": "R10", "question": "Which jugs do I fill with 9 gallons of iced water?", "history": [], "routes": [("TOOL",)]},
-    {"id": "R11", "question": "How do I clean a cambro?", "history": [], "routes": [("DOCS",)]},
-    {"id": "R12", "question": "5 gallons each.",
-     "history": [
-         {"role": "user", "content": "How many cambros for coffee and lemonade?"},
-         {"role": "assistant", "content": "How many gallons of each drink, or how many guests?"},
-     ],
-     "routes": [("TOOL",)], "text_must_contain": ("coffee", "lemonade", "5")},
-    {"id": "R13", "question": "Where are the lemons, and do I need lemons for iced tea?", "history": [], "routes": [("DOCS", "TOOL")]},
-    {"id": "R14", "question": "What syrup flavors do we have?", "history": [], "routes": [("DOCS",)]},
-]
-
-# Spec 007 section 6 eval cases, groups A to D (every case must pass).
-_SPEC7_CASES = [
-    ("A1", "Where do we keep the stir sticks?", ("DOCS",)),
-    ("A2", "What is the difference between Decaf and Coffee on a BEO?", ("DOCS",)),
-    ("A3", "How long does brewed hot cider stay good?", ("DOCS",)),
-    ("B1", "How many hot cups do I need for 120 guests?", ("TOOL",)),
-    ("B2", "Do I bring tea packets for hot water?", ("TOOL",)),
-    ("B3", "How many gallons of orange juice for 60 people?", ("TOOL",)),
-    ("B4", "Which cambros do I use for 12 gallons of Ginger Honeycrisp apple cider?", ("TOOL",)),
-    ("C1", "What is Oatmilk counted in, and how many cups do I need for 80 guests?", ("DOCS", "TOOL")),
-    ("C2", "Where are the lemon tongs kept, and do I bring lemons for hot water for 40 guests?", ("DOCS", "TOOL")),
-    ("C3", "How do I clean the coffee urn, and which cambros hold 4 gallons of decaf?", ("DOCS", "TOOL")),
-    ("C4", "How many napkins should I bring, and what is in the orange juice package?", ("TOOL", "DOCS")),
-    ("D1", "How to make 3 gallons of lemonade?", ("DOCS",)),
-    ("D2", "How do I make 6 gallons of iced tea?", ("DOCS",)),
-    ("D3", "How much sugar goes in a batch of lemonade?", ("DOCS",)),
-    ("D4", "How many lemons do I squeeze for a gallon of lemonade?", ("DOCS",)),
-    ("D5", "What are the steps to brew 5 gallons of coffee?", ("DOCS",)),
-    ("D6", "How many cambros for 3 gallons of lemonade?", ("TOOL",)),
-]
-ROUTER_CASES.extend({"id": i, "question": q, "history": [], "routes": [r]} for i, q, r in _SPEC7_CASES)
-
-# Group E: recipe plus guests. Threshold: at least 2 of 3 must give DOCS, TOOL.
-GROUP_E_CASES = [
-    {"id": "E1", "question": "How do I make lemonade for 90 guests?", "history": [], "routes": [("DOCS", "TOOL")]},
-    {"id": "E2", "question": "What is the recipe for iced tea for 120 people, and how much do I need?", "history": [], "routes": [("DOCS", "TOOL")]},
-    {"id": "E3", "question": "How do I make peach tea for 60 guests?", "history": [], "routes": [("DOCS", "TOOL")]},
-]
-
-
-@pytest.fixture
-def group_e_cases():
-    return GROUP_E_CASES
-
-
-def pytest_generate_tests(metafunc):
-    if "router_case" in metafunc.fixturenames:
-        metafunc.parametrize("router_case", ROUTER_CASES, ids=[c["id"] for c in ROUTER_CASES])
 
 
 # --------------------------------------------------------------------------
@@ -324,8 +281,11 @@ def ollama_available():
 
 
 @pytest.fixture(scope="session")
-def chat_llm(ollama_available):
-    from chat import CHAT_MODEL
+def fast_llm(ollama_available):
+    """Spec 013 AC-6 (eval only): the real chat model with keep_alive=CHAT_KEEP_ALIVE, warmed up by one call."""
+    from chat import CHAT_KEEP_ALIVE, CHAT_MODEL
     from langchain_ollama import ChatOllama
 
-    return ChatOllama(model=CHAT_MODEL, temperature=0)
+    llm = ChatOllama(model=CHAT_MODEL, temperature=0, keep_alive=CHAT_KEEP_ALIVE)
+    llm.invoke("Reply with one word: ready")  # warm-up: loads the model so timings are fair
+    return llm

@@ -18,11 +18,12 @@ sys.path.insert(0, str(SCRIPTS))
 from chat import (  # noqa: E402
     CHAT_MODEL,
     CHROMA_DIR,
-    answer_from_context,
     build_store,
-    retrieve,
-    unknown_retrieval_reply,
+    run_turn,
 )
+
+# Spec 014: this eval runs the real model, so it is an eval and not part of the unit layer.
+pytestmark = pytest.mark.eval
 
 # Substrings that signal an abstain / "I don't know" reply.
 ABSTAIN_MARKERS = (
@@ -70,11 +71,9 @@ def has_abstain_signal(answer: str) -> bool:
 
 
 def generate_answer(store, llm: ChatOllama, question: str) -> str:
-    """Single-turn generation: retrieve, then answer with empty history."""
-    docs = retrieve(store, question)
-    if not docs:
-        return unknown_retrieval_reply()
-    return answer_from_context(llm, history=[], docs=docs, question=question)
+    """Single-turn generation through the real flow (retrieve, route, answer) with empty history.
+    run_turn gives the unknown-retrieval reply itself when nothing is retrieved."""
+    return run_turn(store, llm, [], question).reply
 
 
 @pytest.fixture(scope="module")

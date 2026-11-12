@@ -11,10 +11,15 @@ Internal RAG chatbot for Bay Laurel Catering employees. See `README.md` for the 
 
 ## Layout
 - `scripts/ingest.py` — chunk + embed `data/**/*.md` into Chroma (incremental by mtime)
-- `scripts/chat.py` — interactive retrieve + generate loop
+- `scripts/chat.py` — interactive chat. `run_turn` is the real flow and returns a stage trace: retrieve → router (TOOL / DOCS / BOTH) → tool step → answer; each stage is logged to the `blc.flow` logger (spec 011). `answer_turn` is built on it.
+- `scripts/trace_flow.py` — prints the stages of one question (`--generate` adds the answer, `--json` for data, `--history PATH` for follow-ups)
 - `scripts/voice_chat.py` — push-to-talk voice chat (spec 001)
 - `scripts/pull_sheet.py` — beverage pull sheet from a BEO (spec 002); menu and rules in `data/pull_sheet/`
-- `src/blc/` — feature packages (e.g. `src/blc/pull_sheet/`); entry points in `scripts/` import from here
+- `src/blc/` — feature packages; entry points in `scripts/` import from here:
+  - `router/` — fast router (spec 013): splits the question in code, labels each part with one letter, names the tool from a lookup table (`registry.py`: name, one-line purpose, keywords, available)
+  - `tools/bev_tools/` — the beverage calculator tool `calculate_bev_item` (spec 005); `tool_step/` — its argument check (spec 009)
+  - `trace/` — stage trace types, formatter, JSON converter (spec 011)
+  - `pull_sheet/` — pull sheet calculation (specs 002, 003); `judge/` — answer judge used by evals (spec 004)
 - `tests/` — pytest suites
 - `evals/retrieval/golden.jsonl` — golden Q&A cases
 - `docs/specs/` — feature specs (`TEMPLATE.md` is the format)
@@ -24,6 +29,7 @@ Internal RAG chatbot for Bay Laurel Catering employees. See `README.md` for the 
 poetry install
 poetry run python scripts/ingest.py
 poetry run python scripts/chat.py
+poetry run python scripts/trace_flow.py "Where is the coffee?"   # show the stages for one question
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest            # all tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest -m "not integration and not eval"   # unit only
 ```

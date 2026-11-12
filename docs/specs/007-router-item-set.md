@@ -2,6 +2,7 @@
 
 - **Status:** approved
 - **Date:** 2026-11-11
+- **Superseded in part (2026-11-12):** The JSON router, its reply reading and the guard in code (§3.2, §4.1, §4.2) are superseded by spec 013 and removed by spec 014. `PULL_SHEET_ITEMS` and `pull_sheet_items_in` (§3.1) are still used.
 
 ## 1. Goal
 Make the router (spec 006) reliable on the 7B model `qwen2.5:7b`. Three changes, router only:

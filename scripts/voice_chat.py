@@ -201,12 +201,6 @@ def speakable_text(answer: str, sources: Iterable[str] = ()) -> str:
     return text if _has_alnum(text) else ""
 
 
-def normalize_command(text: str) -> str:
-    """Casefold, then strip leading/trailing whitespace and string.punctuation
-    characters until neither remains. Inner text is untouched."""
-    return text.casefold().strip(string.whitespace + string.punctuation)
-
-
 def is_exit_command(text: str) -> bool:
     """True iff chat.is_exit_utterance(text) (looked up at call time)."""
     return chat.is_exit_utterance(text)

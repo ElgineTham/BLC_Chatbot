@@ -12,6 +12,7 @@ ROUTE_KINDS: tuple[str, ...] = ("TOOL", "DOCS", "BOTH")
 class RoutedPart:
     route: str  # "TOOL" or "DOCS"
     text: str   # the part as a self-contained question
+    tool: str | None = None  # the tool's name for a TOOL part (spec 013); None for DOCS
 
 
 @dataclass(frozen=True)
