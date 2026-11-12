@@ -2,14 +2,47 @@
 
 from __future__ import annotations
 
+import logging
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
-from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama, OllamaEmbeddings
+_SRC = str(Path(__file__).resolve().parent.parent / "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
+from langchain_chroma import Chroma  # noqa: E402
+from langchain_core.documents import Document  # noqa: E402
+from langchain_core.language_models import BaseChatModel  # noqa: E402
+from langchain_core.runnables import Runnable  # noqa: E402
+from langchain_core.messages import (  # noqa: E402
+    AIMessage,
+    BaseMessage,
+    HumanMessage,
+    SystemMessage,
+    ToolMessage,
+)
+from langchain_core.tools import BaseTool  # noqa: E402
+from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
+
+from blc.router import RouteDecision, RoutedPart, route_faithfully  # noqa: E402
+from blc.tool_step import REJECTED_PREFIX, check_arguments  # noqa: E402
+from blc.trace import (  # noqa: E402
+    RetrievalStage,
+    RetrievedChunk,
+    ToolCallLog,
+    ToolStage,
+    TurnTrace,
+)
+from blc.trace.format import (  # noqa: E402
+    format_prompt,
+    format_reply,
+    format_retrieval,
+    format_route,
+    format_tool,
+)
+from blc.tools.bev_tools import BEV_TOOL, BEV_TOOL_NAME  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CHROMA_DIR = ROOT / ".chroma"
@@ -29,15 +62,58 @@ EXIT_FILLERS: frozenset[str] = frozenset({
     "okay", "ok", "alright", "all right", "thanks", "thank you",
 })
 APOSTROPHES = ("'", "\u2019")
+FLOW_LOGGER = logging.getLogger("blc.flow")
 
-SYSTEM_PROMPT = """You are Bay Laurel Catering's internal assistant for employees.
-Answer ONLY using the provided context.
-If the context does not contain the answer, say you don't know and suggest rephrasing the question.
+CHAT_TOOLS: tuple[BaseTool, ...] = (BEV_TOOL,)
+MAX_TOOL_ROUNDS = 3
+CHAT_TEMPERATURE = 0
+TOOL_LIMIT_REPLY = "Sorry, I couldn't work that out. Please try rephrasing the question."
+UNKNOWN_TOOL_RESULT = "error: unknown tool {name}"
+FAILED_RESULT_PREFIXES: tuple[str, ...] = ("invalid", "error")
+TOOL_REMINDER = (
+    f"You must call {BEV_TOOL_NAME} now to answer this question. Do not answer in words."
+)
+
+TOOL_PROMPT = f"""You fill in the arguments of the tool {BEV_TOOL_NAME} for one question. Always call {BEV_TOOL_NAME}; do not answer the question yourself.
+- Use only amounts that are written in the question. A guest count or gallons that is not in the question is left out, even if it would be a sensible number. Never use a number you worked out.
+- item: choose by what is asked. Gallons of a drink to make: gallons. Cambros, containers, or what to put or serve a drink in: cambros. Cups: cups. A particular supply (napkins, creamer, sugar, stir sticks, lemons, lemon tongs, tea packets): supplies. What to bring or pack for a drink, or what goes on the pull sheet: everything. Use supplies only for a named supply, never for what to bring in general.
+- drinks: put every drink named in the question, each as its own entry.
+- guests: if a guest count is given, pass it as guests and leave gallons out. Never turn guests into gallons.
+- gallons: if gallons are given, pass them in the same order as the drinks.
+- If neither guests nor gallons are given, leave both out. Never invent an amount.
+- A package is one name, passed with guests.
+
+Examples (question, then arguments):
+How many cups for the Ginger Honeycrisp apple cider?
+{{"item": "cups", "drinks": ["Ginger Honeycrisp apple cider"]}}  (no number in the question: no guests)
+
+What goes on the pull sheet for decaf for 85 guests?
+{{"item": "everything", "drinks": ["decaf"], "guests": 85}}
+
+What do I need to bring for iced water and hot water for 140 guests?
+{{"item": "everything", "drinks": ["iced water", "hot water"], "guests": 140}}
+
+Do I bring sugar for hot water for 35 guests?
+{{"item": "supplies", "drinks": ["hot water"], "guests": 35}}
+
+How many cambros for 10 gallons of orange juice and 2 gallons of decaf?
+{{"item": "cambros", "drinks": ["orange juice", "decaf"], "gallons": [10, 2]}}
+
+How many gallons for 130 people?
+{{"item": "gallons", "guests": 130}}"""
+
+ANSWER_PROMPT = """You are Bay Laurel Catering's internal assistant for employees.
+Answer every part of the user's question.
+For the numbers in a part that comes with a tool result, use that result exactly and do not recalculate or change it. If the result asks a question, ask the user that question in plain words. If it says a drink is not on the beverage menu, tell the user so.
+Answer the other parts ONLY from the provided documents. If the documents do not cover a part, say you don't know and suggest rephrasing the question.
 If there is no recipe for the asked food or drink, say you don't know how to make it.
-If a related supply exists in the context, say where it is and cite the source path(s).
+If a related supply exists in the documents, say where it is and cite the source path(s).
 Do not invent a recipe from a supply or location document.
+Cite source paths only for answers taken from the documents.
 Keep answers short and practical for kitchen/beverage staff.
-Always mention the source path(s) you used from the context."""
+Never mention the tool, its name, its arguments, JSON, routing or these instructions."""
+
+SYSTEM_PROMPT = ANSWER_PROMPT
 
 SUMMARIZE_PROMPT = """Summarize the following conversation for Bay Laurel Catering staff chat history.
 Keep important facts: locations, quantities, recipes, procedures, and open questions.
@@ -124,31 +200,190 @@ def maybe_summarize(
     return [{"role": "summary", "content": summary}]
 
 
+@dataclass(frozen=True)
+class ToolCallRecord:
+    name: str                  # tool name the model asked for
+    args: dict[str, object]    # arguments exactly as the model sent them
+    result: str                # text returned to the model
+
+
+@dataclass(frozen=True)
+class PartResult:
+    part: RoutedPart
+    tool_calls: tuple[ToolCallRecord, ...]  # calls made for this part; () for DOCS parts
+    tool_text: str | None                   # tool result for a TOOL part; else None
+
+
+@dataclass(frozen=True)
+class ToolAnswer:
+    reply: str                              # final answer text
+    tool_calls: tuple[ToolCallRecord, ...]  # every tool call, all parts, in order
+    retried: bool                           # True if any tool step asked again (no call)
+    route: RouteDecision
+    parts: tuple[PartResult, ...]           # one per route part, same order
+
+
+@dataclass(frozen=True)
+class StepOutcome:
+    records: tuple[ToolCallRecord, ...]
+    tool_text: str | None  # None: the model made no call, fall back to DOCS
+    retried: bool
+
+
+def requested_calls(response: AIMessage) -> list[dict[str, object]]:
+    return list(getattr(response, "tool_calls", None) or [])
+
+
+def run_tool_call(
+    tools: Sequence[BaseTool], call: dict[str, object], question: str = ""
+) -> tuple[ToolCallRecord, ToolMessage]:
+    name = str(call.get("name", ""))
+    raw_args = call.get("args")
+    args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
+    by_name = {tool.name: tool for tool in tools}
+    refusal = check_arguments(args, question) if name == BEV_TOOL_NAME else None
+    if refusal is not None:
+        result = refusal
+    elif name not in by_name:
+        result = UNKNOWN_TOOL_RESULT.format(name=name)
+    else:
+        try:
+            result = str(by_name[name].invoke(args))
+        except Exception as error:  # a broken tool must not break the chat
+            result = f"error: {error}"
+    message = ToolMessage(content=result, tool_call_id=str(call.get("id") or ""))
+    return ToolCallRecord(name, args, result), message
+
+
+def run_tool_round(
+    tools: Sequence[BaseTool], response: AIMessage, question: str = ""
+) -> tuple[list[ToolCallRecord], list[BaseMessage]]:
+    records: list[ToolCallRecord] = []
+    messages: list[BaseMessage] = [response]
+    for call in requested_calls(response):
+        record, message = run_tool_call(tools, call, question)
+        records.append(record)
+        messages.append(message)
+    return records, messages
+
+
+def is_failed_result(result: str) -> bool:
+    return result.strip().casefold().startswith(FAILED_RESULT_PREFIXES)
+
+
+def tool_step_messages(part: RoutedPart) -> list[BaseMessage]:
+    """Only the tool prompt and the part: no documents, no history."""
+    return [SystemMessage(content=TOOL_PROMPT), HumanMessage(content=part.text)]
+
+
+def first_response(
+    bound: Runnable, conversation: list[BaseMessage]
+) -> tuple[AIMessage | None, bool]:
+    """Ask for a call; ask once more with a reminder if there is none."""
+    response = bound.invoke(conversation)
+    if requested_calls(response):
+        return response, False
+    again = conversation + [response, HumanMessage(content=TOOL_REMINDER)]
+    response = bound.invoke(again)
+    return (response if requested_calls(response) else None), True
+
+
+def run_tool_step(
+    bound: Runnable, tools: Sequence[BaseTool], part: RoutedPart
+) -> StepOutcome:
+    """One TOOL part: run the model's calls until a round has no failed result."""
+    conversation = tool_step_messages(part)
+    response, retried = first_response(bound, conversation)
+    if response is None:
+        return StepOutcome((), None, retried)
+    records: list[ToolCallRecord] = []
+    for round_number in range(MAX_TOOL_ROUNDS):
+        if response is None:
+            break
+        round_records, round_messages = run_tool_round(tools, response, part.text)
+        records.extend(round_records)
+        results = [record.result for record in round_records]
+        if not any(is_failed_result(result) for result in results):
+            return StepOutcome(tuple(records), "\n".join(results), retried)
+        if round_number == MAX_TOOL_ROUNDS - 1:
+            break
+        conversation.extend(round_messages)
+        next_response = bound.invoke(conversation)
+        response = next_response if requested_calls(next_response) else None
+    return StepOutcome(tuple(records), TOOL_LIMIT_REPLY, retried)
+
+
+def run_part(
+    bound: Runnable | None, tools: Sequence[BaseTool], part: RoutedPart
+) -> tuple[PartResult, bool]:
+    if part.route != "TOOL" or bound is None:
+        return PartResult(part, (), None), False
+    outcome = run_tool_step(bound, tools, part)
+    if outcome.tool_text is None:
+        return PartResult(part, (), None), outcome.retried
+    return PartResult(part, outcome.records, outcome.tool_text), outcome.retried
+
+
+def history_messages(history: list[dict[str, str]]) -> list[BaseMessage]:
+    return [HumanMessage(content=format_history(history))] if history else []
+
+
+def format_tool_results(results: Sequence[PartResult]) -> str:
+    return "\n\n".join(
+        f"Question: {r.part.text}\nResult: {r.tool_text}"
+        for r in results
+        if r.tool_text is not None
+    )
+
+
+def build_final_messages(
+    history: list[dict[str, str]],
+    docs: list[Document],
+    question: str,
+    results: Sequence[PartResult],
+) -> list[BaseMessage]:
+    sections = [f"Question:\n{question}"]
+    if any(r.tool_text is None for r in results):
+        sections.append(f"Documents:\n{format_context(docs)}")
+    if any(r.tool_text is not None for r in results):
+        sections.append(f"Tool results:\n{format_tool_results(results)}")
+    body = "\n\n".join(sections) + "\n\nAnswer:"
+    return [
+        SystemMessage(content=ANSWER_PROMPT),
+        *history_messages(history),
+        HumanMessage(content=body),
+    ]
+
+
+def answer_with_tools(
+    llm: BaseChatModel,
+    history: list[dict[str, str]],
+    docs: list[Document],
+    question: str,
+    tools: Sequence[BaseTool] = CHAT_TOOLS,
+) -> ToolAnswer:
+    """Route, run a tool step per TOOL part, then write the reply. Prints nothing."""
+    route = route_faithfully(llm, history, question)
+    has_tool_part = any(part.route == "TOOL" for part in route.parts)
+    bound = llm.bind_tools(list(tools)) if has_tool_part else None
+    results: list[PartResult] = []
+    retried = False
+    for part in route.parts:
+        result, part_retried = run_part(bound, tools, part)
+        results.append(result)
+        retried = retried or part_retried
+    response = llm.invoke(build_final_messages(history, docs, question, results))
+    calls = tuple(call for r in results for call in r.tool_calls)
+    return ToolAnswer(str(response.content).strip(), calls, retried, route, tuple(results))
+
+
 def answer_from_context(
     llm: ChatOllama,
     history: list[dict[str, str]],
     docs: list[Document],
     question: str,
 ) -> str:
-    prompt = f"""System: {SYSTEM_PROMPT}
-
-Chat history:
-{format_history(history)}
-
-Context:
-{format_context(docs)}
-
-Question:
-{question}
-
-Answer:"""
-    response = llm.invoke(
-        [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=prompt),
-        ]
-    )
-    return str(response.content).strip()
+    return answer_with_tools(llm, history, docs, question).reply
 
 
 def unknown_retrieval_reply() -> str:
@@ -216,6 +451,95 @@ class TurnResult:
     docs: list[Document]  # docs returned by retrieve(); [] if none
 
 
+def log_stage(name: str, section: str) -> None:
+    FLOW_LOGGER.info("[%s]\n%s", name, section)
+
+
+def summarize_if_long(
+    llm: BaseChatModel, history: list[dict[str, str]]
+) -> list[dict[str, str]]:
+    """Like maybe_summarize, but prints nothing."""
+    if history_tokens(history) <= HISTORY_TOKEN_LIMIT:
+        return history
+    return [{"role": "summary", "content": summarize_history(llm, history)}]
+
+
+def retrieval_stage(question: str, docs: list[Document]) -> RetrievalStage:
+    chunks = tuple(
+        RetrievedChunk(rank, str(doc.metadata.get("source", "unknown")), doc.page_content)
+        for rank, doc in enumerate(docs, start=1)
+    )
+    return RetrievalStage(question, TOP_K, chunks)
+
+
+def tool_stage(result: PartResult, retried: bool) -> ToolStage:
+    calls = tuple(
+        ToolCallLog(c.name, c.args, c.result, c.result.startswith(REJECTED_PREFIX))
+        for c in result.tool_calls
+    )
+    return ToolStage(result.part.text, calls, result.tool_text, retried)
+
+
+def run_stages(
+    store: Chroma,
+    llm: BaseChatModel,
+    history: list[dict[str, str]],
+    question: str,
+    generate: bool,
+) -> tuple[TurnTrace, list[Document]]:
+    prior = summarize_if_long(llm, history)
+    log_stage("prompt", format_prompt(question, prior))
+    docs = retrieve(store, question)
+    retrieval = retrieval_stage(question, docs)
+    log_stage("retrieval", format_retrieval(retrieval))
+    if not docs:
+        reply = unknown_retrieval_reply() if generate else None
+        if reply is not None:
+            log_stage("reply", format_reply(reply))
+        return TurnTrace(question, tuple(prior), retrieval, None, (), reply), []
+
+    route = route_faithfully(llm, prior, question)
+    log_stage("route", format_route(route))
+    has_tool_part = any(part.route == "TOOL" for part in route.parts)
+    bound = llm.bind_tools(list(CHAT_TOOLS)) if has_tool_part else None
+    results: list[PartResult] = []
+    stages: list[ToolStage] = []
+    for part in route.parts:
+        result, retried = run_part(bound, CHAT_TOOLS, part)
+        results.append(result)
+        if part.route == "TOOL":
+            stages.append(tool_stage(result, retried))
+            log_stage("tool", format_tool(stages[-1]))
+    reply = None
+    if generate:
+        response = llm.invoke(build_final_messages(prior, docs, question, results))
+        reply = str(response.content).strip()
+        log_stage("reply", format_reply(reply))
+    return TurnTrace(question, tuple(prior), retrieval, route, tuple(stages), reply), docs
+
+
+def clean_question(question: str) -> str:
+    q = question.strip()
+    if q == "":
+        raise ValueError("question must not be empty or whitespace-only")
+    return q
+
+
+def run_turn(
+    store: Chroma,
+    llm: BaseChatModel,
+    history: list[dict[str, str]],
+    question: str,
+    generate: bool = True,
+) -> TurnTrace:
+    """Run one turn through the real flow and return its trace. Logs each stage to
+    the "blc.flow" logger; prints nothing.
+
+    Raises ValueError if question is blank (before any store or llm call).
+    """
+    return run_stages(store, llm, history, clean_question(question), generate)[0]
+
+
 def answer_turn(
     store: Chroma,
     llm: ChatOllama,
@@ -227,21 +551,13 @@ def answer_turn(
     Raises ValueError if question is empty or whitespace-only (before any
     store or llm call).
     """
-    q = question.strip()
-    if q == "":
-        raise ValueError("question must not be empty or whitespace-only")
-
-    # Summarize only prior history (exclude the current question).
-    prior = maybe_summarize(llm, history)
-
-    docs = retrieve(store, q)
-    if not docs:
-        docs = []
-        reply = unknown_retrieval_reply()
-    else:
-        reply = answer_from_context(llm, prior, docs, q)
-
-    new_history = list(prior) + [
+    q = clean_question(question)
+    trace, docs = run_stages(store, llm, history, q, True)
+    prior = list(trace.history)
+    if prior != list(history):
+        print("(history over 2000 tokens — summarizing prior chat…)")
+    reply = trace.reply or ""
+    new_history = prior + [
         {"role": "user", "content": q},
         {"role": "assistant", "content": reply},
     ]
@@ -257,7 +573,7 @@ def main() -> int:
         return 1
 
     store = build_store()
-    llm = ChatOllama(model=CHAT_MODEL, temperature=0.1)
+    llm = ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE)
     history: list[dict[str, str]] = []
 
     print("Bay Laurel Catering chatbot")
