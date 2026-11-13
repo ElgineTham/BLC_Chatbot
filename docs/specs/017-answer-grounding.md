@@ -1,6 +1,6 @@
 # Spec 017: Grounded answers on the TOOL, DOCS and BOTH paths (30-case eval)
 
-- **Status:** approved (revision 3)
+- **Status:** approved (revision 3, done)
 - **Date:** 2026-11-13 (revisions 1 to 3: 2026-11-13)
 
 ## 1. Goal
@@ -292,3 +292,4 @@ Tests go in `tests/answer_grounding/` (no `__init__.py`): `conftest.py` (the A, 
 - **Revision 3 (2026-11-13)**, after the revision 2 run (7B judge; calibration 9/10, J3 missed; TOOL 8, DOCS 8, BOTH 6). Tracing M5 showed the router, retrieval and tool were all right, but the final message named only the tool part, so the model answered the tool part and dropped the documents part (also M8). The user chose two changes only:
   - **Code to change (`scripts/chat.py`):** for turns that mix tool and documents parts, the final user message lists every part with its label, `(documents)` or `(tool)` plus its result (§4.6); `ANSWER_PROMPT` gains `PART_INSTRUCTION` (§3.4). TOOL-only and DOCS-only messages are unchanged. Router, retrieval, tools and the judge are unchanged.
   - **Tests to change:** new EC-19 to EC-23 tests (AC-3c); existing tests that assert the old BOTH layout are updated to §4.6, nothing else weakened. The eval and its thresholds are unchanged; it is re-run.
+- **Closed (2026-11-13)** by the user after the revision 3 run, as a baseline. Results (7B judge): calibration 9/10 (J3 missed); TOOL 7/10, DOCS 8/10, BOTH 4/10, all below threshold. Planner triage of the 16 misses: judge wrongly failed correct answers (A10, D4, M2, M5, M9); router (D9, M6); chatbot (A2 invented a unit conversion; A4 and M4 cited sources that were not retrieved or echoed part labels; M8 added example amounts after asking for gallons). Revision 3 itself worked: BOTH answers now cover every part. After closing, the user edited `ANSWER_PROMPT` in `scripts/chat.py` directly; that edit is not part of this spec and has not been run through the eval.
