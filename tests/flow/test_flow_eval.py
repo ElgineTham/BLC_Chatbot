@@ -68,7 +68,8 @@ def test_eval_cases_match_the_spec_table(case):
     """Covers: AC-5 (right). Sanity check of the case table itself: DOCS and BOTH cases list the kind's data, TOOL and BOTH cases list a tool expectation, and the kinds are valid (no model needed)."""
     assert case["kind"] in ("DOCS", "TOOL", "BOTH")
     if case["kind"] in ("TOOL", "BOTH"):
-        assert case["tool"] is not None and case["tool"]["item"]
+        assert case["tool"] is not None
+        assert case["tool"]["recipe"] if case["tool"].get("name") == "scale_recipe" else case["tool"]["item"]
     else:
         assert case["tool"] is None
     if case["kind"] == "BOTH":

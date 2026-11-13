@@ -298,7 +298,8 @@ def test_ec7_two_tool_parts(run, Scripted, ai, tc, bev_tool, text_of):
     assert out.tools[1].calls == (calls[1],)
     assert out.tools[0].tool_text == calls[0].result
     assert out.tools[1].tool_text == calls[1].result
-    assert len(model.bind_calls) == 1
+    assert len(model.bind_calls) == 2  # spec 016 section 4.1: one bind_tools call per TOOL part
+    assert all([t.name for t in b] == [BEV_TOOL_NAME] for b in model.bind_calls)
     assert len(model.bound_invocations) == 2
     assert PEACH_Q in text_of(model.bound_invocations[0]) and CUPS_Q not in text_of(model.bound_invocations[0])
     assert CUPS_Q in text_of(model.bound_invocations[1]) and PEACH_Q not in text_of(model.bound_invocations[1])

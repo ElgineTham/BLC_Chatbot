@@ -240,7 +240,8 @@ EVAL_CASES = [
      "kind": "item", "item": "cambros", "drinks": [("Lemonade", 7, False)], "guests": None,
      "reference": "Required: one 5 gal cambro and one 2 gal cambro. Must not: recommend any other count or size of cambros."},
     {"id": "T3", "question": "How many oz of lemonade concentrate do I need to make 5 gallons of lemonade?", "history": [],
-     "kind": "none",
+     # Spec 016 AC-4: a scale_recipe call (ok, Lemonade, 5 gallons), no calculate_bev_item call.
+     "kind": "recipe", "recipe": "Lemonade", "gallons": 5,
      "reference": "Required: 35 oz of lemonade concentrate. Must not: give any other amount."},
     {"id": "T4", "question": "Where is the coffee, and how many gallons of coffee do I need for 75 people?", "history": [],
      "kind": "item", "item": "gallons", "drinks_any_of": [[], [("Coffee", 3, True)]], "guests": 75,

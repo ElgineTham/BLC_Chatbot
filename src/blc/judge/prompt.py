@@ -38,6 +38,43 @@ Example (reference "Required: peach tea."):
 Reply with the single word PASS or FAIL first, then a short reason.
 """
 
+JUDGE_PATHS: tuple[str, ...] = ("TOOL", "DOCS", "BOTH")
+
+PATH_RULES: dict[str, str] = {
+    "TOOL": (
+        'STRICT: the answer may say only what is in "Required:" and "May also:". '
+        "Any other fact FAILS, even if it is true: a location, a rule, a reason, "
+        "an explanation, another item or another amount. Asking the user a question "
+        "or offering help is not a fact."
+    ),
+    "DOCS": (
+        "Correct extra details and explanations PASS. "
+        "Naming something only to rule it out PASSES."
+    ),
+    "BOTH": (
+        "The answer has a calculator part (amounts, counts, cambros, cups, supplies, "
+        "recipe) and a documents part (locations, names, meanings, how-to). "
+        'Calculator part, STRICT: it may say only what is in "Required:" and '
+        '"May also:"; any other calculator fact FAILS, even if true. '
+        "Documents part: correct extra details PASS."
+    ),
+}
+
+PATH_TEMPLATE = """\
+{rule}
+
+Reply with PASS or FAIL first, then a short reason.
+
+QUESTION:
+{question}
+
+REFERENCE:
+{reference}
+
+ANSWER:
+{answer}
+"""
+
 JUDGE_TEMPLATE = """\
 {instructions}
 QUESTION:
@@ -51,7 +88,16 @@ ANSWER:
 """
 
 
-def build_prompt(question: str, reference: str, answer: str) -> str:
+def build_prompt(
+    question: str, reference: str, answer: str, path: str | None = None
+) -> str:
+    if path is not None:
+        return PATH_TEMPLATE.format(
+            rule=PATH_RULES[path],
+            question=question.strip(),
+            reference=reference.strip(),
+            answer=answer.strip(),
+        )
     return JUDGE_TEMPLATE.format(
         instructions=JUDGE_INSTRUCTIONS,
         question=question.strip(),

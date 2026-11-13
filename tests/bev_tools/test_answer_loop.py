@@ -9,10 +9,11 @@ from __future__ import annotations
 
 import chat
 from blc.tools.bev_tools import BEV_TOOL
+from blc.tools.recipe_tools import RECIPE_TOOL
 
 
 def test_constants_match_contract():
     """Covers: spec 005 AC-7 (right). Module constants that stay after spec 006."""
     assert chat.MAX_TOOL_ROUNDS == 3
     assert chat.TOOL_LIMIT_REPLY == "Sorry, I couldn't work that out. Please try rephrasing the question."
-    assert chat.CHAT_TOOLS == (BEV_TOOL,)
+    assert chat.CHAT_TOOLS == (BEV_TOOL, RECIPE_TOOL)

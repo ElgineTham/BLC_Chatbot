@@ -121,12 +121,20 @@ def test_unreadable_reply_falls_back_to_docs(RouterFake):
     assert d.unfaithful is False
 
 
-def test_recipe_question_with_t_reply_becomes_docs(RouterFake):
-    """Covers: AC-3 (wrong), EC-18, EC-24. A T for a recipe question: pick_tool is None (recipe tool unavailable), so the part is DOCS; this is not a fallback."""
+def test_recipe_question_with_t_reply_becomes_tool(RouterFake):
+    """Covers: AC-3 (right), EC-18, EC-24; spec 016 AC-4. A T for a recipe question with an amount: pick_tool gives scale_recipe (now available), so the part is TOOL with that tool."""
     q = "How do I make 3 gallons of lemonade?"
     d = route_fast(RouterFake("T"), [], q)
+    assert d.parts == (RoutedPart("TOOL", q, "scale_recipe"),)
+    assert d.kind == "TOOL"
+    assert d.fallback is False
+
+
+def test_recipe_question_with_d_reply_stays_docs(RouterFake):
+    """Covers: AC-3 (wrong), EC-18; spec 016 AC-4. A D for the same recipe question stays DOCS with no tool; not a fallback."""
+    q = "How do I make 3 gallons of lemonade?"
+    d = route_fast(RouterFake("D"), [], q)
     assert d.parts == (RoutedPart("DOCS", q, None),)
-    assert d.kind == "DOCS"
     assert d.fallback is False
 
 

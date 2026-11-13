@@ -14,6 +14,8 @@ import pytest
 pytestmark = pytest.mark.eval
 
 BEV = "calculate_bev_item"
+RECIPE = "scale_recipe"
+RECIPE_CASES = {"K27", "K28", "K29"}  # spec 016 AC-4: these expect tool scale_recipe
 H_HOT_DECAF = [
     {"role": "user", "content": "How many cambros do I need for hot water and decaf?"},
     {"role": "assistant", "content": "How many gallons of each drink, or how many guests?"},
@@ -65,9 +67,10 @@ K_CASES = [
     _k("K24", "And the syrups?", ("DOCS",), H_LEMON, ("lemon", "syrups")),
     _k("K25", "How many hot cups do I need for 40 guests?", ("TOOL",), H_COFFEE, equals=True),
     _k("K26", "How do I make lemonade?", ("DOCS",)),
-    _k("K27", "How do I make 3 gallons of lemonade?", ("DOCS",)),
-    _k("K28", "How much lemon concentrate do I need for 6 gallons of lemonade?", ("DOCS",)),
-    _k("K29", "How do I make lemonade for 90 guests?", ("DOCS",)),
+    # Spec 016 AC-4: K27 to K29 are recipe questions with an amount: TOOL with tool scale_recipe.
+    _k("K27", "How do I make 3 gallons of lemonade?", ("TOOL",)),
+    _k("K28", "How much lemon concentrate do I need for 6 gallons of lemonade?", ("TOOL",)),
+    _k("K29", "How do I make lemonade for 90 guests?", ("TOOL",)),
     _k("K30", "How many cambors do I need for 7 gallons of lemonade?", ("TOOL",)),
     _k("K31", "What is the difference between regular and decaf coffee?", ("DOCS",)),
 ]
@@ -79,8 +82,9 @@ def _problems(case, decision):
     if routes != case["routes"]:
         problems.append(f"routes {routes} != {case['routes']}")
     for p in decision.parts:
-        if p.route == "TOOL" and p.tool != BEV:
-            problems.append(f"TOOL part has tool {p.tool!r}, expected {BEV!r}")
+        expected_tool = RECIPE if case["id"] in RECIPE_CASES else BEV
+        if p.route == "TOOL" and p.tool != expected_tool:
+            problems.append(f"TOOL part has tool {p.tool!r}, expected {expected_tool!r}")
         if p.route == "DOCS" and p.tool is not None:
             problems.append(f"DOCS part has tool {p.tool!r}")
     if len(case["routes"]) == 1 and len(decision.parts) == 1:

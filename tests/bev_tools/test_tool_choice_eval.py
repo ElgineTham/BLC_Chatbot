@@ -102,6 +102,23 @@ def test_tool_choice(store, chat_llm, eval_case):
     if case["kind"] == "none_or_item" and not calls:
         return
 
+    if case["kind"] == "recipe":
+        # Spec 016 AC-4 (T3): only scale_recipe calls; the calls that ran give ok, the recipe, the gallons.
+        from blc.tools.recipe_tools import RECIPE_TOOL_NAME, run_recipe_tool
+
+        assert calls, f"{case['id']}: expected a call to {RECIPE_TOOL_NAME}, got none. Reply: {out.reply!r}"
+        wrong = [c.name for c in calls if c.name != RECIPE_TOOL_NAME]
+        assert not wrong, f"{case['id']}: calls to {wrong}, expected only {RECIPE_TOOL_NAME}. Calls: {names}"
+        ran = [c for c in calls if not c.refused]
+        assert ran, f"{case['id']}: every call was refused. Calls: {names}"
+        errors = []
+        for c in ran:
+            r = run_recipe_tool(c.args)
+            if (r.status, r.recipe, r.gallons) != ("ok", case["recipe"], Fraction(case["gallons"])):
+                errors.append(f"{c.args} gives {(r.status, r.recipe, r.gallons)}")
+        assert not errors, f"{case['id']}: {errors}. Calls: {names}. Reply: {out.reply!r}"
+        return
+
     assert calls, f"{case['id']}: expected a call to {BEV_TOOL_NAME}, got none. Reply: {out.reply!r}"
     errors = []
     for call in calls:

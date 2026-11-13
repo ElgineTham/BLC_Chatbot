@@ -291,7 +291,9 @@ PACKAGE_DRINKS = [("Coffee", 3, True), ("Decaf", 3, True), ("Hot water", 3, True
 
 CASES = [
     _case("E1", "Where is the coffee?", "DOCS", ["data/supplies/coffee.md"], ["coffee machine", "beverage room"]),
-    _case("E2", "How do I make 5 gallons of lemonade?", "DOCS", ["data/recipes/lemonade.md"], ["35 oz"]),
+    # spec 016 revision 1: now a TOOL case (scale_recipe); sources and must are kept but only used for DOCS/BOTH
+    _case("E2", "How do I make 5 gallons of lemonade?", "TOOL", ["data/recipes/lemonade.md"], ["35 oz"],
+          tool={"name": "scale_recipe", "recipe": "Lemonade", "gallons": 5, "status": "ok", "guests": None}),
     _case("E3", "What syrup flavors do we have?", "DOCS", ["data/supplies/syrups.md"], ["Mango", "Strawberry", "Peach"]),
     _case("E4", "If there are no lemons by the sink, where else can I look?", "DOCS",
           ["data/supplies/lemon.md"], ["cooler", "dish room"]),
@@ -463,6 +465,22 @@ def _call_errors(spec, call):
     from blc.tools.bev_tools import BEV_TOOL_NAME, run_bev_tool
 
     errors = []
+    if spec.get("name") == "scale_recipe":
+        from blc.tools.recipe_tools import run_recipe_tool
+
+        if call.name != "scale_recipe":
+            errors.append(f"call to {call.name!r}, expected 'scale_recipe'")
+        try:
+            res = run_recipe_tool(call.args)
+        except Exception as exc:
+            return errors + [f"run_recipe_tool raised {exc!r}"]
+        if res.status != spec["status"]:
+            errors.append(f"status {res.status!r} != {spec['status']!r}")
+        elif res.recipe != spec["recipe"] or not _amount_equal(res.gallons, spec["gallons"]):
+            errors.append(f"recipe/gallons {res.recipe!r}/{res.gallons!r} != {spec['recipe']!r}/{spec['gallons']!r}")
+        if _guests_given(call.args) != spec["guests"]:
+            errors.append(f"guests {_guests_given(call.args)!r} != {spec['guests']!r}")
+        return errors
     if call.name != BEV_TOOL_NAME:
         errors.append(f"call to {call.name!r}, expected {BEV_TOOL_NAME!r}")
     if call.args.get("item") != spec["item"]:

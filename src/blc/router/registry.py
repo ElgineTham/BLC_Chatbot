@@ -16,15 +16,19 @@ CLASSIFIER_TEMPLATE = (
     "{tools}\n"
     "Use T for: how many cambros, cups or gallons; which cambros hold N gallons; "
     "whether to bring a supply (sugar, creamer, napkins); what to bring or what goes "
-    "on the pull sheet.\n"
+    "on the pull sheet; how much of an ingredient, or how to make something, for a "
+    "given number of gallons or guests.\n"
     "D = a lookup in the documents: where things are, what something is, flavors, "
-    "cleaning, schedules, how something is made or done. A number that does not change "
+    "cleaning, schedules, how something is made or done with no amount given. A number that does not change "
     "the answer is still D.\n"
     "Examples:\n"
     "Which cambros hold 12 gallons of hot water? T\n"
     "Do I need napkins for the cider? T\n"
     "What goes on the pull sheet for decaf for 80 people? T\n"
+    "How much syrup for 9 gallons of punch? T\n"
+    "How do I make punch for 50 guests? T\n"
     "Where is the tea kept? D\n"
+    "How do I make punch? D\n"
     "What does \"iced tea with lemon wedges\" mean? D\n"
     "Letters only."
 )
@@ -48,7 +52,7 @@ TOOL_REGISTRY: tuple[ToolEntry, ...] = (
         "Scales a recipe's ingredient amounts to a number of gallons or guests.",
         ("recipe", "ingredient", "ingredients", "concentrate", "oz", "ounce", "ounces",
          "how to make", "how do i make", "how do we make", "how can i make"),
-        False,
+        True,
     ),
     ToolEntry(
         BEV_TOOL_NAME,

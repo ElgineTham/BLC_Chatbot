@@ -218,18 +218,11 @@ def test_prompt_is_not_empty_beyond_inputs():
     assert len(llm.received_text()) > 200
 
 
-def test_judge_model_is_14b():
-    """Covers: AC-8 (right). JUDGE_MODEL is qwen2.5:14b."""
+def test_judge_model_is_7b():
+    """Covers: AC-8 (right), spec 017 revision 2. JUDGE_MODEL is qwen2.5:7b."""
     import blc.judge as judge_pkg
 
-    assert judge_pkg.JUDGE_MODEL == "qwen2.5:14b"
-
-
-def test_judge_model_differs_from_chat_model():
-    """Covers: AC-8 (wrong). The judge is not the 7B chat model it grades."""
-    import blc.judge as judge_pkg
-
-    assert judge_pkg.JUDGE_MODEL != "qwen2.5:7b"
+    assert judge_pkg.JUDGE_MODEL == "qwen2.5:7b"
 
 
 def test_calibration_case_data_has_35_cases(all_calibration_cases):

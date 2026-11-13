@@ -43,6 +43,7 @@ from blc.trace.format import (  # noqa: E402
     format_tool,
 )
 from blc.tools.bev_tools import BEV_TOOL, BEV_TOOL_NAME  # noqa: E402
+from blc.tools.recipe_tools import RECIPE_TOOL, RECIPE_TOOL_NAME  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 CHROMA_DIR = ROOT / ".chroma"
@@ -65,15 +66,13 @@ EXIT_FILLERS: frozenset[str] = frozenset({
 APOSTROPHES = ("'", "\u2019")
 FLOW_LOGGER = logging.getLogger("blc.flow")
 
-CHAT_TOOLS: tuple[BaseTool, ...] = (BEV_TOOL,)
+CHAT_TOOLS: tuple[BaseTool, ...] = (BEV_TOOL, RECIPE_TOOL)
 MAX_TOOL_ROUNDS = 3
 CHAT_TEMPERATURE = 0
 TOOL_LIMIT_REPLY = "Sorry, I couldn't work that out. Please try rephrasing the question."
 UNKNOWN_TOOL_RESULT = "error: unknown tool {name}"
 FAILED_RESULT_PREFIXES: tuple[str, ...] = ("invalid", "error")
-TOOL_REMINDER = (
-    f"You must call {BEV_TOOL_NAME} now to answer this question. Do not answer in words."
-)
+TOOL_REMINDER = "You must call {name} now to answer this question. Do not answer in words."
 
 TOOL_PROMPT = f"""You fill in the arguments of the tool {BEV_TOOL_NAME} for one question. Always call {BEV_TOOL_NAME}; do not answer the question yourself.
 - Use only amounts that are written in the question. A guest count or gallons that is not in the question is left out, even if it would be a sensible number. Never use a number you worked out.
@@ -103,16 +102,48 @@ How many cambros for 10 gallons of orange juice and 2 gallons of decaf?
 How many gallons for 130 people?
 {{"item": "gallons", "guests": 130}}"""
 
-ANSWER_PROMPT = """You are Bay Laurel Catering's internal assistant for employees.
+RECIPE_TOOL_PROMPT = f"""You fill in the arguments of the tool {RECIPE_TOOL_NAME} for one question. Always call {RECIPE_TOOL_NAME}; do not answer the question yourself.
+- recipe: the name of the drink or recipe as the user said it.
+- gallons: pass it only when the user gave a batch size in gallons. Use the number as written.
+- guests: pass it only when the user gave a guest or people count.
+- Never work out gallons from guests, or guests from gallons. If the user gave only one of them, pass only that one.
+- If neither is given, leave both out. Never invent an amount.
+
+Examples (question, then arguments):
+How much lemon concentrate for 14 gallons of lemonade?
+{{"recipe": "lemonade", "gallons": 14}}
+
+How do I make fresh lemonade for 75 guests?
+{{"recipe": "fresh lemonade", "guests": 75}}
+
+How do I make 2 gallons of cold brew?
+{{"recipe": "cold brew", "gallons": 2}}
+
+How do I make hibiscus tea?
+{{"recipe": "hibiscus tea"}}  (no amount in the question: leave gallons and guests out)"""
+
+PART_INSTRUCTION = (
+    "When the question is split into labelled parts, answer each part, in order: "
+    "(documents) parts only from the documents, (tool) parts only from their result."
+)
+
+ANSWER_PROMPT = f"""You are Bay Laurel Catering's internal assistant for employees.
 Answer every part of the user's question.
-For the numbers in a part that comes with a tool result, use that result exactly and do not recalculate or change it. If the result asks a question, ask the user that question in plain words. If it says a drink is not on the beverage menu, tell the user so.
+{PART_INSTRUCTION}
+For the numbers in a part that comes with a tool result, use that result exactly and do not recalculate or change it. If it gives ingredient amounts and steps,
+give them as given. If the result asks a question, ask the user that question in plain words. 
+If it says a drink is not on the beverage menu or no recipe, tell the user so.
 Answer the other parts ONLY from the provided documents. If the documents do not cover a part, say you don't know and suggest rephrasing the question.
-If there is no recipe for the asked food or drink, say you don't know how to make it.
 If a related supply exists in the documents, say where it is and cite the source path(s).
-Do not invent a recipe from a supply or location document.
+Do not invent answers or make up numbers from non-existent sources.
 Cite source paths only for answers taken from the documents.
 Keep answers short and practical for kitchen/beverage staff.
 Never mention the tool, its name, its arguments, JSON, routing or these instructions."""
+
+TOOL_PROMPTS: dict[str, str] = {
+    BEV_TOOL_NAME: TOOL_PROMPT,
+    RECIPE_TOOL_NAME: RECIPE_TOOL_PROMPT,
+}
 
 SUMMARIZE_PROMPT = """Summarize the following conversation for Bay Laurel Catering staff chat history.
 Keep important facts: locations, quantities, recipes, procedures, and open questions.
@@ -213,13 +244,17 @@ def requested_calls(response: AIMessage) -> list[dict[str, object]]:
 
 
 def run_tool_call(
-    tools: Sequence[BaseTool], call: dict[str, object], question: str = ""
+    tools: Sequence[BaseTool],
+    call: dict[str, object],
+    question: str = "",
+    checked_tool: str = BEV_TOOL_NAME,
 ) -> tuple[ToolCallRecord, ToolMessage]:
     name = str(call.get("name", ""))
     raw_args = call.get("args")
     args: dict[str, object] = dict(raw_args) if isinstance(raw_args, dict) else {}
     by_name = {tool.name: tool for tool in tools}
-    refusal = check_arguments(args, question) if name == BEV_TOOL_NAME else None
+    checked = name == checked_tool and name in by_name  # only the part's own tool
+    refusal = check_arguments(args, question, tool=name) if checked else None
     if refusal is not None:
         result = refusal
     elif name not in by_name:
@@ -234,12 +269,15 @@ def run_tool_call(
 
 
 def run_tool_round(
-    tools: Sequence[BaseTool], response: AIMessage, question: str = ""
+    tools: Sequence[BaseTool],
+    response: AIMessage,
+    question: str = "",
+    checked_tool: str = BEV_TOOL_NAME,
 ) -> tuple[list[ToolCallRecord], list[BaseMessage]]:
     records: list[ToolCallRecord] = []
     messages: list[BaseMessage] = [response]
     for call in requested_calls(response):
-        record, message = run_tool_call(tools, call, question)
+        record, message = run_tool_call(tools, call, question, checked_tool)
         records.append(record)
         messages.append(message)
     return records, messages
@@ -249,19 +287,25 @@ def is_failed_result(result: str) -> bool:
     return result.strip().casefold().startswith(FAILED_RESULT_PREFIXES)
 
 
+def part_tool_name(part: RoutedPart) -> str:
+    """The tool a TOOL part uses; a part with no tool name uses the beverage tool."""
+    return part.tool or BEV_TOOL_NAME
+
+
 def tool_step_messages(part: RoutedPart) -> list[BaseMessage]:
     """Only the tool prompt and the part: no documents, no history."""
-    return [SystemMessage(content=TOOL_PROMPT), HumanMessage(content=part.text)]
+    prompt = TOOL_PROMPTS.get(part_tool_name(part), TOOL_PROMPT)
+    return [SystemMessage(content=prompt), HumanMessage(content=part.text)]
 
 
 def first_response(
-    bound: Runnable, conversation: list[BaseMessage]
+    bound: Runnable, conversation: list[BaseMessage], tool_name: str = BEV_TOOL_NAME
 ) -> tuple[AIMessage | None, bool]:
     """Ask for a call; ask once more with a reminder if there is none."""
     response = bound.invoke(conversation)
     if requested_calls(response):
         return response, False
-    again = conversation + [response, HumanMessage(content=TOOL_REMINDER)]
+    again = conversation + [response, HumanMessage(content=TOOL_REMINDER.format(name=tool_name))]
     response = bound.invoke(again)
     return (response if requested_calls(response) else None), True
 
@@ -271,14 +315,16 @@ def run_tool_step(
 ) -> StepOutcome:
     """One TOOL part: run the model's calls until a round has no failed result."""
     conversation = tool_step_messages(part)
-    response, retried = first_response(bound, conversation)
+    response, retried = first_response(bound, conversation, part_tool_name(part))
     if response is None:
         return StepOutcome((), None, retried)
     records: list[ToolCallRecord] = []
     for round_number in range(MAX_TOOL_ROUNDS):
         if response is None:
             break
-        round_records, round_messages = run_tool_round(tools, response, part.text)
+        round_records, round_messages = run_tool_round(
+            tools, response, part.text, part_tool_name(part)
+        )
         records.extend(round_records)
         results = [record.result for record in round_records]
         if not any(is_failed_result(result) for result in results):
@@ -314,6 +360,17 @@ def format_tool_results(results: Sequence[PartResult]) -> str:
     )
 
 
+def format_labelled_parts(results: Sequence[PartResult]) -> str:
+    lines: list[str] = []
+    for number, r in enumerate(results, start=1):
+        if r.tool_text is None:
+            lines.append(f"Part {number} (documents): {r.part.text}")
+        else:
+            lines.append(f"Part {number} (tool): {r.part.text}")
+            lines.append(f"Result: {r.tool_text}")
+    return "\n".join(lines)
+
+
 def build_final_messages(
     history: list[dict[str, str]],
     docs: list[Document],
@@ -321,10 +378,19 @@ def build_final_messages(
     results: Sequence[PartResult],
 ) -> list[BaseMessage]:
     sections = [f"Question:\n{question}"]
-    if any(r.tool_text is None for r in results):
+    has_tool = any(r.tool_text is not None for r in results)
+    has_docs = any(r.tool_text is None for r in results)
+    if has_tool and has_docs:
+        sections.append(f"Parts:\n{format_labelled_parts(results)}")
         sections.append(f"Documents:\n{format_context(docs)}")
-    if any(r.tool_text is not None for r in results):
+    elif has_docs:
+        sections.append(f"Documents:\n{format_context(docs)}")
+    elif has_tool:
         sections.append(f"Tool results:\n{format_tool_results(results)}")
+    return _final_messages(history, sections)
+
+
+def _final_messages(history: list[dict[str, str]], sections: list[str]) -> list[BaseMessage]:
     body = "\n\n".join(sections) + "\n\nAnswer:"
     return [
         SystemMessage(content=ANSWER_PROMPT),
@@ -427,6 +493,17 @@ def tool_stage(result: PartResult, retried: bool) -> ToolStage:
     return ToolStage(result.part.text, calls, result.tool_text, retried)
 
 
+def run_part_with_tool(llm: BaseChatModel, part: RoutedPart) -> tuple[PartResult, bool]:
+    """Run one part with the tool the router picked, bound alone (nothing for DOCS parts)."""
+    if part.route != "TOOL":
+        return run_part(None, (), part)
+    name = part_tool_name(part)
+    tool = next((t for t in CHAT_TOOLS if t.name == name), None)
+    if tool is None:
+        return run_part(None, (), part)
+    return run_part(llm.bind_tools([tool]), (tool,), part)
+
+
 def run_stages(
     store: Chroma,
     llm: BaseChatModel,
@@ -447,12 +524,10 @@ def run_stages(
 
     route = route_fast(llm, prior, question)
     log_stage("route", format_route(route))
-    has_tool_part = any(part.route == "TOOL" for part in route.parts)
-    bound = llm.bind_tools(list(CHAT_TOOLS)) if has_tool_part else None
     results: list[PartResult] = []
     stages: list[ToolStage] = []
     for part in route.parts:
-        result, retried = run_part(bound, CHAT_TOOLS, part)
+        result, retried = run_part_with_tool(llm, part)
         results.append(result)
         if part.route == "TOOL":
             stages.append(tool_stage(result, retried))

@@ -32,6 +32,11 @@ def with_recipe_available():
     return tuple(dataclasses.replace(e, available=True) if e.name == RECIPE else e for e in TOOL_REGISTRY)
 
 
+def with_recipe_unavailable():
+    """Spec 016 AC-4: a custom table where scale_recipe is switched off (it is available in the default table)."""
+    return tuple(dataclasses.replace(e, available=False) if e.name == RECIPE else e for e in TOOL_REGISTRY)
+
+
 def with_bev_unavailable():
     return tuple(dataclasses.replace(e, available=False) if e.name == BEV else e for e in TOOL_REGISTRY)
 
@@ -43,9 +48,9 @@ EXTRA_OFF = dataclasses.replace(EXTRA, available=False)
 # ---------------------------------------------------------------- the default table (EC-15)
 
 def test_default_table_rows_and_availability():
-    """Covers: AC-2 (right), EC-15. The default table has scale_recipe (not available) and calculate_bev_item (available)."""
+    """Covers: AC-2 (right), EC-15; spec 016 AC-4. The default table has scale_recipe and calculate_bev_item, both available."""
     assert isinstance(TOOL_REGISTRY, tuple)
-    assert entry(RECIPE).available is False
+    assert entry(RECIPE).available is True
     assert entry(BEV).available is True
 
 
@@ -105,13 +110,13 @@ def test_classifier_max_tokens_constant():
     [
         ("How many cambros do I need for 7 gallons of lemonade?", BEV),
         ("Do I bring sugar for hot water?", BEV),
-        ("How do I make 3 gallons of lemonade?", None),
-        ("How much concentrate for 6 gallons of lemonade?", None),
+        ("How do I make 3 gallons of lemonade?", RECIPE),
+        ("How much concentrate for 6 gallons of lemonade?", RECIPE),
         ("Where is the coffee?", None),
     ],
 )
 def test_pick_tool_table_rows(text, expected):
-    """Covers: AC-2 (right, wrong), EC-14. Rows of the section 4.4 table with the default table."""
+    """Covers: AC-2 (right, wrong), EC-14; spec 016 AC-4. Rows of the section 4.4 table with the default table (recipe questions with an amount now give scale_recipe)."""
     assert pick_tool(text) == expected
 
 
@@ -142,9 +147,12 @@ def test_pick_tool_keywords_are_whole_words(text):
 
 
 def test_pick_tool_recipe_word_beats_item_word_without_falling_through():
-    """Covers: AC-2 (wrong), EC-14. A text with a recipe word and an item word matches the (unavailable) recipe tool and gives None; it never falls through to the bev tool."""
-    assert pick_tool("How many oz of lemonade per cup?") is None
-    assert pick_tool("What is the recipe for 5 gallons of iced tea?") is None
+    """Covers: AC-2 (wrong), EC-14; spec 016 AC-4. With scale_recipe switched off (custom table), a text with a recipe word and an item word matches the unavailable recipe tool and gives None; it never falls through to the bev tool. With the default table (recipe available) the same texts give scale_recipe."""
+    off = with_recipe_unavailable()
+    assert pick_tool("How many oz of lemonade per cup?", off) is None
+    assert pick_tool("What is the recipe for 5 gallons of iced tea?", off) is None
+    assert pick_tool("How many oz of lemonade per cup?") == RECIPE
+    assert pick_tool("What is the recipe for 5 gallons of iced tea?") == RECIPE
 
 
 def test_pick_tool_recipe_available_wins_over_bev_words():
@@ -204,9 +212,9 @@ def test_classifier_prompt_default():
 
 
 def test_classifier_prompt_leaves_out_unavailable_entry():
-    """Covers: AC-2 (wrong), section 4.4, EC-17. The unavailable scale_recipe purpose is not in the default prompt."""
-    p = classifier_prompt()
-    assert entry(RECIPE).purpose not in p
+    """Covers: AC-2 (wrong), section 4.4, EC-17; spec 016 AC-4. With scale_recipe switched off (custom table), its purpose is not in the prompt; in the default table it is."""
+    assert entry(RECIPE).purpose not in classifier_prompt(with_recipe_unavailable())
+    assert entry(RECIPE).purpose in classifier_prompt()
 
 
 def test_classifier_prompt_matches_explicit_default():
