@@ -329,8 +329,9 @@ def test_answer_turn_single_char_question_accepted():
 
 @pytest.fixture
 def chat_main_env(monkeypatch, tmp_path):
-    """Make chat.main runnable offline: existing CHROMA_DIR, fake store, fake answer_turn,
-    scripted input()."""
+    """Make chat.main runnable offline: existing CHROMA_DIR, fake store, fake run_planned_turn
+    (spec 019 section 3.2 / revision 1, spec 020 AC-4), scripted input(). The fake streams its reply
+    through on_token in one piece, as the flow does for a reply that is not streamed."""
     env = SimpleNamespace(inputs=[], consumed=0, turn_calls=[], replies=[], store=FakeStore())
 
     monkeypatch.setattr(chat, "CHROMA_DIR", tmp_path)
@@ -347,17 +348,22 @@ def chat_main_env(monkeypatch, tmp_path):
 
     monkeypatch.setattr("builtins.input", fake_input)
 
-    def fake_answer_turn(store, llm, history, question):
+    def fake_run_planned_turn(llm, store, question, history=None, on_token=None, *args, **kwargs):
         env.turn_calls.append((store, llm, history, question))
         n = len(env.turn_calls)
         reply = f"REPLY-{n}"
-        new_hist = list(history) + [
+        new_hist = list(history or []) + [
             {"role": "user", "content": question},
             {"role": "assistant", "content": reply},
         ]
-        return chat.TurnResult(reply, new_hist, [])
+        if on_token is not None:
+            on_token(reply)
+        return SimpleNamespace(
+            question=question, reply=reply, history=new_hist, documents=(), searches=(), tools=(),
+            answered_by_model=False,
+        )
 
-    monkeypatch.setattr(chat, "answer_turn", fake_answer_turn)
+    monkeypatch.setattr(chat, "run_planned_turn", fake_run_planned_turn)
     return env
 
 
@@ -365,10 +371,10 @@ def _an_exit_command() -> str:
     return sorted(chat.EXIT_COMMANDS)[0]
 
 
-def test_chat_main_routes_turns_through_answer_turn(chat_main_env, capsys):
-    """Covers: AC-5 (right), NFR-5. Each non-empty, non-exit input goes to
-    chat.answer_turn (module global), 'Assistant: {reply}' is printed, and the
-    returned history is passed into the next turn."""
+def test_chat_main_routes_turns_through_run_planned_turn(chat_main_env, capsys):
+    """Covers: AC-5 (right), NFR-5; spec 020 AC-4. Each non-empty, non-exit input goes to
+    chat.run_planned_turn (module global), 'Assistant: {reply}' is printed, and the
+    outcome's history (outcome.history) is passed into the next turn."""
     env = chat_main_env
     env.inputs = ["Where is the coffee?", "And the sugar?", _an_exit_command()]
 
@@ -387,8 +393,9 @@ def test_chat_main_routes_turns_through_answer_turn(chat_main_env, capsys):
     assert out.index("Assistant: REPLY-1") < out.index("Assistant: REPLY-2")
 
 
-def test_chat_main_input_is_stripped_before_answer_turn(chat_main_env):
-    """Covers: AC-5 (boundary: padded input). raw is already stripped when passed on."""
+def test_chat_main_input_is_stripped_before_the_turn(chat_main_env):
+    """Covers: AC-5 (boundary: padded input); spec 020 AC-4. The question passed to
+    run_planned_turn is already stripped."""
     env = chat_main_env
     env.inputs = ["   Where is the coffee?   ", _an_exit_command()]
     chat.main()
@@ -407,8 +414,8 @@ def test_chat_main_exit_command_stops_without_answer(chat_main_env):
 
 @pytest.mark.parametrize("blank", ["", "   ", "\t"], ids=["empty", "spaces", "tab"])
 def test_chat_main_empty_input_is_ignored(chat_main_env, blank):
-    """Covers: AC-5 (boundary: empty input). Empty/whitespace input is not sent to
-    answer_turn and the loop keeps reading."""
+    """Covers: AC-5 (boundary: empty input); spec 020 AC-4. Empty/whitespace input is not sent to
+    run_planned_turn and the loop keeps reading."""
     env = chat_main_env
     env.inputs = [blank, "Where is the coffee?", _an_exit_command()]
     chat.main()
@@ -616,8 +623,8 @@ def test_chat_main_rev5_exit_utterances(chat_main_env, capsys, text, _norm):
 
 @pytest.mark.parametrize("text,_norm", [r for r in EC22_NON_EXIT_ROWS if r[0].strip()])
 def test_chat_main_rev5_non_exit_inputs_are_answered(chat_main_env, capsys, text, _norm):
-    """Covers: AC-29 (wrong: not an exit), EC-22. Non-empty 'no' rows ('Thanks.',
-    'Bye, where is the coffee?', '!!!', ...) are sent to answer_turn and answered."""
+    """Covers: AC-29 (wrong: not an exit), EC-22; spec 020 AC-4. Non-empty 'no' rows ('Thanks.',
+    'Bye, where is the coffee?', '!!!', ...) are sent to run_planned_turn and answered."""
     env = chat_main_env
     env.inputs = [text, "bye"]
 
@@ -629,7 +636,8 @@ def test_chat_main_rev5_non_exit_inputs_are_answered(chat_main_env, capsys, text
 
 
 def test_chat_main_rev5_exit_after_a_question(chat_main_env, capsys):
-    """Covers: AC-29 (right). 'Goodbye.' after a normal question ends the loop."""
+    """Covers: AC-29 (right); spec 020 AC-4. 'Goodbye.' after a normal question ends the loop
+    (the question went through run_planned_turn)."""
     env = chat_main_env
     env.inputs = ["Where is the coffee?", "Goodbye.", "should never be read"]
 

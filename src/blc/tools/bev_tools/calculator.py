@@ -28,6 +28,7 @@ from blc.tools.bev_tools.drinks import (
     resolve_requests,
 )
 from blc.tools.bev_tools.reply_text import (
+    cups_ok_text,
     invalid_text,
     need_info_question,
     not_on_menu_text,
@@ -142,12 +143,15 @@ def _answer(
         return _result("ok", text, plan.not_on_menu, amounts, (), gallons_each)
     if item == "cups" and not plan.order:
         cups_each = guests + _extra_for(catalog, guests)
-        text = ok_text(amounts, (), guests, None, False, cups_each=cups_each)
+        text = cups_ok_text((), guests, (), cups_each)
         return _result("ok", text, plan.not_on_menu, amounts, (), None, cups_each)
     sheet = build_pull_sheet(catalog, Beo(guests or 1, beo_lines(catalog, plan, guests)))
     sized = {name for name, sized_ in drinks.items() if sized_.amount is not None}
     lines, left_out = _select(catalog, item, sheet.lines, guests, sized)
-    text = ok_text(amounts, lines, guests, None, left_out, names)
+    if item == "cups":
+        text = cups_ok_text(lines, guests or 0, names)
+    else:
+        text = ok_text(amounts, lines, guests, None, left_out, names)
     return _result("ok", text, plan.not_on_menu, amounts, lines, None)
 
 

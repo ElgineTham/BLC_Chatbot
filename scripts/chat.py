@@ -26,6 +26,7 @@ from langchain_core.messages import (  # noqa: E402
 from langchain_core.tools import BaseTool  # noqa: E402
 from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
 
+from blc.flow import run_planned_turn  # noqa: E402
 from blc.router import RoutedPart, route_fast  # noqa: E402
 from blc.tool_step import REJECTED_PREFIX, check_arguments  # noqa: E402
 from blc.trace import (  # noqa: E402
@@ -617,9 +618,16 @@ def main() -> int:
             print("Bye.")
             return 0
 
-        result = answer_turn(store, llm, history, raw)
-        print(f"Assistant: {result.reply}\n")
-        history = result.history
+        print("Assistant: ", end="", flush=True)
+        outcome = run_planned_turn(
+            llm,
+            store,
+            raw,
+            summarize_if_long(llm, history),
+            on_token=lambda piece: print(piece, end="", flush=True),
+        )
+        print("\n")
+        history = outcome.history
 
 
 if __name__ == "__main__":

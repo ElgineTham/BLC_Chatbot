@@ -114,3 +114,34 @@ def ok_text(
     return "\n".join(rows)
 
 
+
+
+def _cup_kind(supply: str) -> str:
+    words = supply.replace("-", " ")
+    return words[:1].upper() + words[1:]
+
+
+def _cup_line_sentence(line: PullLine, guests: int) -> str:
+    count = line.quantity or 0
+    return (
+        f"{_cup_kind(line.supply)}: {count} for {count_word(guests, 'guest')} "
+        f"({count_word(guests, 'guest')} plus {count_word(count - guests, 'extra')})."
+    )
+
+
+def cups_ok_text(
+    lines: Sequence[PullLine],
+    guests: int,
+    drink_names: Sequence[str] = (),
+    cups_each: int | None = None,
+) -> str:
+    """Plain cups-only reply for item "cups" (spec 020): no drink amounts, no raw supply names."""
+    if cups_each is not None:
+        return (
+            f"For {count_word(guests, 'guest')}: {count_word(cups_each, 'cup')} "
+            f"({count_word(guests, 'guest')} plus {count_word(cups_each - guests, 'extra')}). "
+            "The same count applies to hot cups and to cold cups."
+        )
+    if not lines:
+        return f"{', '.join(drink_names)} needs no cups."
+    return "\n".join(_cup_line_sentence(line, guests) for line in lines)

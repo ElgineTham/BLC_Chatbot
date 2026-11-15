@@ -160,10 +160,13 @@ def test_text_supplies_ticks_and_cup_note(catalog):
 
 
 def test_text_cups_quantities(catalog):
-    """Covers: AC-4 (right), EC-6. Cup lines show their counts."""
+    """Covers: AC-4 (right), EC-6; spec 020 AC-5. Cup lines show their counts, in plain words
+    (spec 020 section 4.1 replaces the raw 'hot-cups: 120' text)."""
     r = calc(catalog, "cups", [DrinkRequest("Coffee"), DrinkRequest("Lemonade")], guests=70)
-    assert "hot-cups: 120" in r.text
-    assert "cold-cups: 120" in r.text
+    assert "Hot cups" in r.text and "Cold cups" in r.text
+    assert r.text.count("120") == 2
+    assert "hot-cups" not in r.text
+    assert "cold-cups" not in r.text
 
 
 def test_text_cups_each(catalog):
