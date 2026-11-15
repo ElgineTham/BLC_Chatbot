@@ -51,11 +51,10 @@ Applies to all new code and tests unless a spec says otherwise.
 ## Team workflow
 The **planner** runs as the main session, started with `claude --agent planner`. A plain `claude` session is not the planner: it lacks the planner instructions and is not restricted by the guard. Features go through a spec in `docs/specs/NNN-<name>.md`, approved by the user, then:
 
-1. `developer` implements the spec (never edits `tests/`).
-2. `tester` writes tests from the spec only (never sees source code, runs nothing).
-3. `test-evaluator` (tests vs spec, no source) and `code-evaluator` (source vs spec, no tests) run in parallel.
-4. If both pass, `implementation-evaluator` runs the tests against the code and diagnoses failures.
-5. The planner cross-checks results and reports to the user.
+1. `developer` (implements the spec, never sees `tests/`) and `tester` (writes tests from the spec only, never sees source code, runs nothing) start at the same time.
+2. When the tester finishes, `test-evaluator` audits the tests against the spec (no source). A FAIL stops the round and goes to the user.
+3. Once the test-evaluator passes and the developer is done, `implementation-evaluator` runs the tests against the code and diagnoses failures.
+4. The planner reports to the user.
 
 Agents are briefed only with the spec path; they never receive each other's outputs.
 Access limits are enforced by `.claude/hooks/agent_guard.py`.

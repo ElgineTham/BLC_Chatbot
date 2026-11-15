@@ -27,6 +27,7 @@ from langchain_core.tools import BaseTool  # noqa: E402
 from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
 
 from blc.flow import run_planned_turn  # noqa: E402
+from blc.pull_sheet import RuleFileError, load_catalog  # noqa: E402
 from blc.router import RoutedPart, route_fast  # noqa: E402
 from blc.tool_step import REJECTED_PREFIX, check_arguments  # noqa: E402
 from blc.trace import (  # noqa: E402
@@ -599,6 +600,10 @@ def main() -> int:
     llm = ChatOllama(
         model=CHAT_MODEL, temperature=CHAT_TEMPERATURE, keep_alive=CHAT_KEEP_ALIVE
     )
+    try:
+        drink_catalog = load_catalog()
+    except (RuleFileError, OSError):
+        drink_catalog = None
     history: list[dict[str, str]] = []
 
     print("Bay Laurel Catering chatbot")
@@ -625,6 +630,7 @@ def main() -> int:
             raw,
             summarize_if_long(llm, history),
             on_token=lambda piece: print(piece, end="", flush=True),
+            drink_catalog=drink_catalog,
         )
         print("\n")
         history = outcome.history

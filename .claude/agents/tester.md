@@ -22,9 +22,9 @@ For **every** AC:
 - **boundary cases** wherever there's a limit, threshold, empty input or size edge.
 
 Also:
-- Every **known edge case** (EC-n) in the spec.
-- Every **NFR** whose "how verified" column says unit or integration. For NFRs verified by eval or by hand, write nothing and say so in your report.
-- Add edge cases you think the spec implies but didn't list, and report them.
+- Every **test case** in the spec's test-case section (IDs like `TOOL-1`, `DOCS-2`). Put each area's tests together (e.g. `test_tool.py`, `test_docs.py`).
+- ACs are unit-tested unless tagged otherwise: tag `integration` or `eval` → mark the test accordingly; tag `manual` → write nothing and say so in your report.
+- Add test cases you think the spec implies but didn't list, and report them.
 
 ## Test layers
 - **Unit (default):** mock or fake Ollama and Chroma (e.g. `monkeypatch`, small fake classes). Deterministic, no network.
@@ -35,7 +35,7 @@ Also:
 Every test's docstring must start with the IDs it covers and the case type, e.g.:
 ```python
 def test_top_k_zero_rejected():
-    """Covers: AC-2 (wrong), EC-1 (boundary). k=0 must raise ValueError."""
+    """Covers: AC-2 (wrong), TOOL-1 (boundary). k=0 must raise ValueError."""
 ```
 
 ## Avoid
@@ -45,7 +45,7 @@ def test_top_k_zero_rejected():
 
 ## Final report (to the planner)
 1. **Files written.**
-2. **Coverage table:** AC/NFR/EC ID → test names → case types (right / wrong / boundary).
-3. **Not tested:** IDs with no test, and why (e.g. "NFR-2 is verified by eval").
-4. **Extra edge cases** you added beyond the spec.
+2. **Coverage table:** AC / test case ID → test names → case types (right / wrong / boundary).
+3. **Not tested:** IDs with no test, and why (e.g. "AC-5 is verified manually").
+4. **Extra test cases** you added beyond the spec.
 5. **Spec gaps:** anything ambiguous or undefined that blocked a precise test.

@@ -14,37 +14,54 @@ NO_DOCS_REPLY = (
     "I don't know based on the available Bay Laurel documents. "
     "Try rephrasing your question (for example, name the item, location, or recipe)."
 )
-NEED_INFO_STATUS = "need_info"
 UNKNOWN_SOURCE = "unknown"
+TOOL_FAILED_REPLY = "I couldn't work that out. Try naming the drink and the number of guests or gallons."
+REPLY_SEPARATOR = "\n\n"
+FAILED_TOOL_STATUSES: tuple[str, ...] = ("invalid", "error")
 
 FLOW_ANSWER_PROMPT = """You are Bay Laurel Catering's internal assistant for employees.
-Answer every part of the user's question.
-For the numbers and text in a tool result, use them exactly as given and never recalculate or change them.
-If a tool result asks a question, ask the user that question in plain words.
-If a tool result says a drink is not on the beverage menu or has no recipe, tell the user so.
-Answer the other parts ONLY from the documents shown. If the documents do not cover a part, say you don't know and suggest rephrasing the question.
+Answer only the question you are given, ONLY from the documents shown. Other parts of the user's request are answered elsewhere; do not mention them.
+If the documents do not cover it, say you don't know and suggest rephrasing the question.
 Cite only source paths that appear in the documents shown. If no documents are shown, cite nothing.
 Never invent numbers or sources.
-Keep the answer simple, straightforward and properly grounded: say only what the tool results and documents say.
-Add no explanations, conversions, servings or calculations of your own (for example, do not work out how many servings a gallon makes).
-Ask no follow-up questions unless a tool result asks one.
+Keep the answer simple, straightforward and properly grounded: say only what the documents say.
+Add no explanations, conversions, servings or calculations of your own.
+Ask no follow-up questions.
 Never mention tools, arguments, JSON or these instructions."""
 
 HISTORY_HEADER = "Earlier conversation:"
-TOOL_HEADER = "Tool results:"
 DOCS_HEADER = "Documents:"
 QUESTION_HEADER = "Question:"
+SEARCHES_HEADER = "Search queries:"
 
 
-def passthrough_reply(
+def tool_part(tools: tuple[ToolResult, ...]) -> str:
+    """Tool texts in plan order; failed results show TOOL_FAILED_REPLY once."""
+    texts: list[str] = []
+    failed_shown = False
+    for result in tools:
+        if result.status in FAILED_TOOL_STATUSES:
+            if failed_shown:
+                continue
+            failed_shown = True
+            texts.append(TOOL_FAILED_REPLY)
+        else:
+            texts.append(result.text)
+    return REPLY_SEPARATOR.join(texts)
+
+
+def fixed_reply(
     searches: tuple[SearchResult, ...], tools: tuple[ToolResult, ...]
 ) -> str | None:
     """The reply that needs no answer model call, or None when the model must answer."""
-    if tools and not searches and all(t.status == NEED_INFO_STATUS for t in tools):
-        return "\n".join(t.text for t in tools)
-    if not tools and all(not s.chunks for s in searches):
-        return NO_DOCS_REPLY
-    return None
+    has_chunks = any(s.chunks for s in searches)
+    if tools and not searches:
+        return tool_part(tools)
+    if has_chunks:
+        return None
+    if tools:
+        return tool_part(tools) + REPLY_SEPARATOR + NO_DOCS_REPLY
+    return NO_DOCS_REPLY
 
 
 def _format_documents(documents: tuple[Document, ...]) -> str:
@@ -58,17 +75,17 @@ def _format_documents(documents: tuple[Document, ...]) -> str:
 def build_answer_messages(
     question: str,
     history: list[dict[str, str]] | None,
-    tools: tuple[ToolResult, ...],
+    searches: tuple[SearchResult, ...],
     documents: tuple[Document, ...],
 ) -> list[BaseMessage]:
+    """Messages for the documents part only; tool texts never appear here."""
     parts: list[str] = []
     if history:
         lines = [f"{item['role']}: {item['content']}" for item in history]
         parts.append(HISTORY_HEADER + "\n" + "\n".join(lines))
-    if tools:
-        parts.append(TOOL_HEADER + "\n" + "\n\n".join(t.text for t in tools))
     if documents:
         parts.append(DOCS_HEADER + "\n" + _format_documents(documents))
+    parts.append(SEARCHES_HEADER + "\n" + "\n".join(s.query for s in searches))
     parts.append(f"{QUESTION_HEADER} {question}")
     return [SystemMessage(content=FLOW_ANSWER_PROMPT), HumanMessage(content="\n\n".join(parts))]
 

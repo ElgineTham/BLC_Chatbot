@@ -332,8 +332,17 @@ def chat_main_env(monkeypatch, tmp_path):
     """Make chat.main runnable offline: existing CHROMA_DIR, fake store, fake run_planned_turn
     (spec 019 section 3.2 / revision 1, spec 020 AC-4), scripted input(). The fake streams its reply
     through on_token in one piece, as the flow does for a reply that is not streamed."""
-    env = SimpleNamespace(inputs=[], consumed=0, turn_calls=[], replies=[], store=FakeStore())
+    env = SimpleNamespace(inputs=[], consumed=0, turn_calls=[], replies=[], store=FakeStore(),
+                          catalog=object(), catalog_calls=0, catalog_error=None, turn_catalogs=[])
 
+    # Spec 022 section 3.3 / AC-9: main() loads the catalog once; the fake keeps every test off data/.
+    def fake_load_catalog(*args, **kwargs):
+        env.catalog_calls += 1
+        if env.catalog_error is not None:
+            raise env.catalog_error
+        return env.catalog
+
+    monkeypatch.setattr(chat, "load_catalog", fake_load_catalog)
     monkeypatch.setattr(chat, "CHROMA_DIR", tmp_path)
     monkeypatch.setattr(chat, "build_store", lambda *a, **k: env.store)
 
@@ -348,8 +357,10 @@ def chat_main_env(monkeypatch, tmp_path):
 
     monkeypatch.setattr("builtins.input", fake_input)
 
-    def fake_run_planned_turn(llm, store, question, history=None, on_token=None, *args, **kwargs):
+    def fake_run_planned_turn(llm, store, question, history=None, on_token=None, planner_llm=None,
+                              tool_runners=None, drink_catalog=None, **kwargs):
         env.turn_calls.append((store, llm, history, question))
+        env.turn_catalogs.append(drink_catalog)
         n = len(env.turn_calls)
         reply = f"REPLY-{n}"
         new_hist = list(history or []) + [
@@ -391,6 +402,44 @@ def test_chat_main_routes_turns_through_run_planned_turn(chat_main_env, capsys):
     assert "Assistant: REPLY-1\n" in out
     assert "Assistant: REPLY-2\n" in out
     assert out.index("Assistant: REPLY-1") < out.index("Assistant: REPLY-2")
+
+
+def test_chat_main_loads_the_catalog_once_and_passes_it_every_turn(chat_main_env):
+    """Covers: spec 022 AC-5 (right), EC-27, NFR-3. load_catalog is called once, before the loop, and both
+    run_planned_turn calls get that catalog as drink_catalog."""
+    env = chat_main_env
+    env.inputs = ["Where is the coffee?", "And the sugar?", _an_exit_command()]
+    chat.main()
+    assert len(env.turn_calls) == 2
+    assert env.catalog_calls == 1
+    assert env.turn_catalogs == [env.catalog, env.catalog]
+    assert all(c is env.catalog for c in env.turn_catalogs)
+
+
+def test_chat_main_loads_the_catalog_even_when_no_turn_runs(chat_main_env):
+    """Covers: spec 022 AC-5 (boundary), EC-27. Loaded once, before the chat loop, so also when the user exits at once."""
+    env = chat_main_env
+    env.inputs = [_an_exit_command()]
+    chat.main()
+    assert env.catalog_calls == 1
+    assert env.turn_calls == []
+
+
+@pytest.mark.parametrize("kind", ["oserror", "rulefile"])
+def test_chat_main_survives_a_catalog_load_failure(chat_main_env, capsys, kind):
+    """Covers: spec 022 AC-5 (wrong), EC-28. If load_catalog raises OSError or RuleFileError, main still answers
+    turns and passes drink_catalog=None; the catalog is not loaded again."""
+    from blc.pull_sheet import RuleFileError
+
+    env = chat_main_env
+    env.catalog_error = OSError("no data") if kind == "oserror" else RuleFileError("bad rules")
+    env.inputs = ["Where is the coffee?", "And the sugar?", _an_exit_command()]
+    rc = chat.main()
+    assert rc == 0
+    assert [c[3] for c in env.turn_calls] == ["Where is the coffee?", "And the sugar?"]
+    assert env.turn_catalogs == [None, None]
+    assert env.catalog_calls == 1
+    assert "Assistant: REPLY-1\n" in capsys.readouterr().out
 
 
 def test_chat_main_input_is_stripped_before_the_turn(chat_main_env):

@@ -5,6 +5,8 @@ The fake model raises if the planner is called more often than scripted, so a th
 """
 from __future__ import annotations
 
+import re
+
 from blc.flow import RejectedCall
 from blc.planner import NO_INVENTED_RULE
 
@@ -68,9 +70,13 @@ def test_ec14_retry_fixes_it(run, text_of):
     """Covers: AC-2 (right), EC-14, EC-21. Two planner calls; the second sees the rule, tool, argument, value."""
     r = run(Q60, [[(BEV, BAD)], [(BEV, GOOD)]])
     assert len(r.llm.invoke_calls) == 2
-    second = text_of(r.llm.invoke_calls[1])
-    for part in (NO_INVENTED_RULE, BEV, "gallons", "6"):
-        assert part in second, part
+    first_contents = {str(m.content) for m in r.llm.invoke_calls[0]}
+    added = "\n".join(str(m.content) for m in r.llm.invoke_calls[1] if str(m.content) not in first_contents)
+    assert added, "the retry added no text to the planner's messages"
+    for part in (NO_INVENTED_RULE, BEV, "gallons"):
+        assert part in added, part
+    # spec 022 AC-8: the invented 6 is in the added text as a whole number (the question's "60" does not count)
+    assert re.search(r"(?<![\d.])6(?![\d])", added), added
     assert bev_calls(r) == [GOOD]
 
 

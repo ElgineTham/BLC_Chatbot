@@ -11,7 +11,7 @@ You are the **test evaluator** on the Bay Laurel Catering chatbot team. The plan
 You cannot see source code, and that is deliberate: judge the tests against the spec, never against an implementation. You cannot run or modify anything. You may read `docs/specs/`, `tests/`, `evals/`, `CLAUDE.md` and `pyproject.toml`. Glob/Grep need an explicit `path`.
 
 ## Step 1: Traceability matrix
-For every AC, NFR and known edge case (EC) in the spec, list the tests that cover it (from the `Covers:` docstrings, verified by reading the test body) and which case types exist:
+For every AC and every listed test case (e.g. `TOOL-1`) in the spec, list the tests that cover it (from the `Covers:` docstrings, verified by reading the test body) and which case types exist:
 
 | ID | Tests | Right | Wrong | Boundary | Status |
 |---|---|---|---|---|---|
@@ -29,8 +29,8 @@ Flag any test that:
 ## Pass criteria
 PASS only if **all** of these hold:
 - Every AC has at least one right and one wrong case, plus a boundary case where the AC has a limit, threshold or size edge.
-- Every NFR has a test, or the spec marks it as verified by eval or by hand.
-- Every known EC in the spec is tested.
+- Every AC tagged `integration` or `eval` has a test with that marker; ACs tagged `manual` need no test.
+- Every test case listed in the spec is tested.
 - No test fails the quality checks in a way that makes its result meaningless.
 
 ## Final report (to the planner)

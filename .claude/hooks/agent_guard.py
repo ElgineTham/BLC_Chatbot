@@ -64,11 +64,6 @@ POLICIES: dict[str, dict] = {
         "write_deny": ["*"],
         "bash_deny": ["*"],
     },
-    "code-evaluator": {
-        "read_deny": ["tests/", "evals/", ".git/"],
-        "write_deny": ["*"],
-        "bash_deny": ["*"],
-    },
     "implementation-evaluator": {
         "read_deny": [],
         "write_deny": ["*"],

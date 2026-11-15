@@ -1,6 +1,6 @@
 # Spec 021: No invented numbers: a tool-description rule and an argument check
 
-- **Status:** approved (revision 2)
+- **Status:** approved (revision 2, done: accepted by the user below the TOOL and BOTH thresholds)
 - **Date:** 2026-11-14 (revisions 1 and 2: 2026-11-14)
 
 ## 1. Goal
@@ -341,3 +341,15 @@ Tester only; no code changes.
    - a case whose formatting raises is recorded as an error, and the next case is still written;
    - Fraction amounts are shown by value (e.g. 17.5).
 4. **Re-run** the golden eval. The thresholds are unchanged.
+
+## Closing note (2026-11-14)
+**Results:**
+- **Unit tests:** 3154 passed; the only failure is the accepted `DIDNT_CATCH` test.
+- **Golden eval:** TOOL 7/10, DOCS 10/10, BOTH 8/10. Part 2 (invented numbers) 30/30. G1's invented `gallons: [0]` was caught and removed by the retry. Log: `logs/golden_calls_2026-11-14_211346.md`.
+
+**Failures, accepted by the user:**
+- G2, G3 and B6: the planner dropped the drink when only guests were given. Spec 022 fills it in code.
+- G10: `scale_recipe` was called for a cups follow-up.
+- B5: the search was skipped.
+
+**Weak test, carried to spec 022:** in `tests/no_invented/test_retry.py`, EC-14's check that the second planner call contains `6` can't fail, because the question itself ("For 60 guests…") contains a 6.

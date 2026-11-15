@@ -19,12 +19,13 @@ from blc.pull_sheet.constants import (
     UNKNOWN_UNIT,
 )
 from blc.pull_sheet.errors import BeoError, RuleFileError
+from blc.pull_sheet.menu_names import menu_names
 from blc.pull_sheet.output import format_pull_sheet
 from blc.pull_sheet.pull_line import PullLine
 from blc.pull_sheet.sheet import PullSheet, build_pull_sheet
 
 __all__ = [
-    "BeoError", "RuleFileError", "Catalog", "load_catalog", "BeoLine", "Beo",
+    "BeoError", "RuleFileError", "Catalog", "load_catalog", "menu_names", "BeoLine", "Beo",
     "parse_beo", "PullLine", "Skipped", "PullSheet", "build_pull_sheet",
     "format_pull_sheet", "ROOT", "DEFAULT_RULES_DIR", "MENU_FILE",
     "RULES_FILE", "GALLON", "EACH", "GUESTS_PER_GALLON", "PER_VALUES", "TICK",

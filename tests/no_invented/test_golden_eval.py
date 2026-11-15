@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+import golden_fill_helpers as fh
 from blc.flow import run_planned_turn
 from blc.tools.bev_tools import run_bev_tool
 from blc.tools.recipe_tools import run_recipe_tool
@@ -29,15 +30,33 @@ def tool_result(name, args):
 
 
 @pytest.fixture(scope="module")
-def eval_run(real_llm, real_store, golden_cases, scorer, golden_log):
-    def run_turn(case, on_token):
-        return run_planned_turn(real_llm, real_store, case["question"], case["history"], on_token=on_token)
+def drink_catalog():
+    """Spec 022 §4.4: the real catalog, loaded once per eval run; skip (not fail) if it cannot be loaded."""
+    from blc.pull_sheet import RuleFileError, load_catalog
 
-    results = [golden_log.run_case(scorer, c, run_turn, tool_result) for c in golden_cases]
-    report = golden_log.report(results)
-    path = golden_log.write_log(results, report, LOG_DIR)
+    try:
+        return load_catalog()
+    except (RuleFileError, OSError) as exc:
+        pytest.skip(f"Beverage catalog could not be loaded: {exc}")
+
+
+@pytest.fixture(scope="module")
+def eval_run(real_llm, real_store, drink_catalog, golden_cases, scorer, golden_log):
+    def run_turn(case, on_token):
+        return run_planned_turn(real_llm, real_store, case["question"], case["history"], on_token=on_token,
+                                drink_catalog=drink_catalog)
+
+    def c1_turn(question, history):
+        return run_planned_turn(real_llm, real_store, question, history, drink_catalog=drink_catalog)
+
+    results = [fh.with_fill_info(golden_log.run_case(scorer, c, run_turn, tool_result)) for c in golden_cases]
+    c1 = fh.run_c1(c1_turn, tool_result)
+    report = "\n".join([golden_log.report(results), f"Cases with drinks filled: {fh.filled_total(results)}",
+                        *fh.c1_report_lines(c1)])
+    path = golden_log.write_log(results + [fh.c1_pseudo_result(c1)], report, LOG_DIR)
     print(f"\n{report}\nGolden calls log: {path}")
-    return {"results": results, "report": report, "path": path, "text": path.read_text(encoding="utf-8")}
+    return {"results": results, "report": report, "path": path, "text": path.read_text(encoding="utf-8"),
+            "c1": c1}
 
 
 def _passed(eval_run, path):
@@ -109,6 +128,50 @@ def test_report_has_a_line_per_case_and_the_totals(eval_run, golden_cases):
     for path in ("TOOL", "DOCS", "BOTH"):
         assert re.search(rf"^{path}: \d+ of 10", rep, flags=re.M)
     assert "invented a number" in rep and "retried" in rep and "dropped" in rep
+
+
+def test_each_plan_subsection_has_the_filled_drinks_line(eval_run, golden_cases):
+    """Covers: spec 022 AC-7 (right). Every case's Plan sub-section has a 'filled drinks:' line after the final plan."""
+    sections = re.split(r"^## [GLB]\d+$", eval_run["text"], flags=re.M)[1:]
+    for case, sec, res in zip(golden_cases, sections, eval_run["results"]):
+        if res["error"]:
+            continue
+        plan = sec.split("### Plan")[1].split("### Part 1")[0]
+        assert re.search(r"^- filled drinks: (none|.+ from (question|history) \(call \d+\))$", plan, flags=re.M), case["id"]
+        assert plan.index("- final plan:") < plan.index("filled drinks:"), case["id"]
+
+
+def test_report_shows_filled_per_case_and_in_the_totals(eval_run, golden_cases):
+    """Covers: spec 022 AC-7 (right). Each case line says whether drinks were filled; the totals count filled cases."""
+    rep = eval_run["report"]
+    for c in golden_cases:
+        line = re.search(rf"^{c['id']}: .*$", rep, flags=re.M).group()
+        assert "filled" in line, c["id"]
+    totals = [l for l in rep.splitlines() if not re.match(r"^([GLB]\d+|C1)\b", l) and "filled" in l.lower()]
+    assert any(re.search(r"\d", l) for l in totals), rep
+
+
+def test_c1_section_has_three_turns_after_the_cases(eval_run):
+    """Covers: spec 022 AC-7 (right). A C1 section after the 30 cases with one sub-section per turn."""
+    text = eval_run["text"]
+    assert text.index("## C1") > text.rindex("## B10")
+    c1 = text[text.index("## C1"):]
+    assert [m for m in re.findall(r"^### Turn (\d)$", c1, flags=re.M)] == ["1", "2", "3"]
+
+
+def test_c1_report_has_a_line_per_turn(eval_run):
+    """Covers: spec 022 AC-7 (right). The printed report ends with one C1 line per turn (no threshold)."""
+    last = eval_run["report"].splitlines()[-3:]
+    assert [l.startswith(f"C1 turn {i}") for i, l in enumerate(last, 1)] == [True, True, True]
+
+
+def test_c1_ran_three_turns_in_order(eval_run):
+    """Covers: spec 022 AC-7 (right), C1. Three turns with the §4.4 questions; each reports its facts (report only)."""
+    assert [t["question"] for t in eval_run["c1"]] == list(fh.C1_QUESTIONS)
+    c1 = eval_run["text"][eval_run["text"].index("## C1"):]
+    for t in eval_run["c1"]:
+        assert t["question"] in c1
+        assert t["error"] is not None or ("filled drinks:" in c1 and "Decaf" in c1)
 
 
 def test_every_case_ran_or_recorded_its_error(eval_run, golden_cases):
