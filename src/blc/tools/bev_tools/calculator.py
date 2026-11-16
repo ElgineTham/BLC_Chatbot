@@ -4,24 +4,23 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from fractions import Fraction
 
-from blc.pull_sheet import (
-    EACH,
-    Beo,
-    Catalog,
-    PullLine,
-    build_pull_sheet,
-    load_catalog,
-)
-from blc.pull_sheet.supplies import _extra_for
-from blc.pull_sheet.text import guests_to_gallons, norm
+from blc.tools.bev_tools.amounts import ordered_amounts
+from blc.tools.bev_tools.catalog import Catalog, load_catalog
+from blc.tools.bev_tools.catalog_entries import EACH
+from blc.tools.bev_tools.gallons import guests_to_gallons
+from blc.tools.bev_tools.item_lines import pull_lines
+from blc.tools.bev_tools.names import norm
+from blc.tools.bev_tools.pull_line import PullLine
+from blc.tools.bev_tools.supplies import extra_for
 from blc.tools.bev_tools.drinks import (
     BevInputError,
     DrinkAmount,
     DrinkRequest,
     Plan,
     Sized,
-    beo_lines,
+    plan_needs,
     drink_amounts,
     expand_drinks,
     missing_gallon_amounts,
@@ -35,6 +34,7 @@ from blc.tools.bev_tools.reply_text import (
     ok_text,
 )
 
+BEV_TOOL_NAME = "calculate_bev_item"
 BEV_ITEMS: tuple[str, ...] = ("gallons", "cambros", "cups", "supplies", "everything")
 BEV_STATUSES: tuple[str, ...] = ("ok", "need_info", "not_on_menu", "invalid")
 CUP_RULE = "guest+extra"
@@ -142,12 +142,13 @@ def _answer(
         text = ok_text(amounts, (), guests, gallons_each, False)
         return _result("ok", text, plan.not_on_menu, amounts, (), gallons_each)
     if item == "cups" and not plan.order:
-        cups_each = guests + _extra_for(catalog, guests)
+        cups_each = guests + extra_for(catalog, guests)
         text = cups_ok_text((), guests, (), cups_each)
         return _result("ok", text, plan.not_on_menu, amounts, (), None, cups_each)
-    sheet = build_pull_sheet(catalog, Beo(guests or 1, beo_lines(catalog, plan, guests)))
+    ordered, order = plan_needs(catalog, plan, guests)
+    all_lines = tuple(pull_lines(catalog, Fraction(guests or 1), ordered, order))
     sized = {name for name, sized_ in drinks.items() if sized_.amount is not None}
-    lines, left_out = _select(catalog, item, sheet.lines, guests, sized)
+    lines, left_out = _select(catalog, item, all_lines, guests, sized)
     if item == "cups":
         text = cups_ok_text(lines, guests or 0, names)
     else:

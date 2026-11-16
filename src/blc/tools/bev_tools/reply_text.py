@@ -5,8 +5,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from fractions import Fraction
 
-from blc.pull_sheet import EACH, PullLine
+from blc.tools.bev_tools.catalog_entries import EACH
 from blc.tools.bev_tools.drinks import DrinkAmount
+from blc.tools.bev_tools.pull_line import PullLine
 
 NOT_ON_MENU_PHRASE = "not on the beverage menu"
 GUEST_NOTE = "Cup counts need the number of guests."

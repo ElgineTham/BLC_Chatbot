@@ -6,14 +6,13 @@ import math
 from fractions import Fraction
 from typing import Any
 
-from blc.pull_sheet.catalog import Catalog
-from blc.pull_sheet.constants import RULES_FILE
-from blc.pull_sheet.models import Supply
-from blc.pull_sheet.pull_line import PullLine
-from blc.pull_sheet.text import norm
+from blc.tools.bev_tools.catalog import RULES_FILE, Catalog
+from blc.tools.bev_tools.catalog_entries import Supply
+from blc.tools.bev_tools.names import norm
+from blc.tools.bev_tools.pull_line import PullLine
 
 
-def _extra_for(catalog: Catalog, guests: Fraction | int) -> int:
+def extra_for(catalog: Catalog, guests: Fraction | int) -> int:
     tiers = sorted((b, e) for b, e in catalog._extras if b is not None)
     for bound, extra in tiers:
         if guests <= bound:
@@ -35,7 +34,7 @@ def _contribution(
     if rule.per == "guest":
         return qty * guests
     if rule.per == "guest+extra":
-        return qty * guests + _extra_for(catalog, guests)
+        return qty * guests + extra_for(catalog, guests)
     if rule.per == "item":
         return qty * len(matching)
     return sum((qty * math.ceil(ordered[n]) for n in matching), Fraction(0))

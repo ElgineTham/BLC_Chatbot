@@ -6,11 +6,10 @@ from typing import Any
 
 from langchain_core.tools import BaseTool
 
-from blc.pull_sheet import Catalog
+from blc.tools.bev_tools.catalog import Catalog
 from blc.tools.bev_tools.arguments import run_bev_tool
-from blc.tools.bev_tools.calculator import BEV_ITEMS
+from blc.tools.bev_tools.calculator import BEV_ITEMS, BEV_TOOL_NAME
 
-BEV_TOOL_NAME = "calculate_bev_item"
 BEV_TOOL_DESCRIPTION = (
     "Calculates beverage pull sheet amounts exactly: gallons, cambros, cups or supplies "
     "for the drinks and guest count the user gave. You must use this tool instead of "

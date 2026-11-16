@@ -8,9 +8,18 @@ from fractions import Fraction
 from pathlib import Path
 from typing import Any
 
-from blc.pull_sheet.errors import RuleFileError
 
 _TAG_RE = re.compile(r"[A-Z0-9-]+")
+
+
+class RuleFileError(ValueError):
+    """The beverage menu or rules file is missing or invalid."""
+
+    def __init__(self, path: Path, detail: str, line: int | None = None) -> None:
+        self.path = path
+        self.line = line
+        where = f"line {line}: " if line is not None else ""
+        super().__init__(f"{path}: {where}{detail}")
 
 
 def quote(key: str) -> str:

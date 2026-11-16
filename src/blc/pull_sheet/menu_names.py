@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from blc.pull_sheet.catalog import Catalog
+from blc.tools.bev_tools import Catalog
 
 
 def menu_names(catalog: Catalog) -> dict[str, str]:

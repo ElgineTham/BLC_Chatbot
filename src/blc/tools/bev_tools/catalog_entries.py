@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from fractions import Fraction
 
+GALLON = "gallon"
+EACH = "each"
+PER_VALUES: tuple[str, ...] = ("event", "guest", "guest+extra", "item", "unit")
+
 
 @dataclass(frozen=True)
 class Item:

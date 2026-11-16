@@ -6,7 +6,7 @@ import math
 from dataclasses import dataclass
 from fractions import Fraction
 
-from blc.pull_sheet.text import guests_to_gallons
+from blc.tools.bev_tools.gallons import guests_to_gallons
 from blc.tools.recipe_tools.book import Recipe, RecipeBook, load_recipe_book
 from blc.tools.recipe_tools.reply_text import (
     ingredient_line,
@@ -16,6 +16,7 @@ from blc.tools.recipe_tools.reply_text import (
     ok_text,
 )
 
+RECIPE_TOOL_NAME = "scale_recipe"
 RECIPE_STATUSES: tuple[str, ...] = ("ok", "need_info", "no_recipe", "invalid")
 FILL_UNIT = "gallon"
 

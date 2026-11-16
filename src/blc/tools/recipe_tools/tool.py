@@ -8,8 +8,8 @@ from langchain_core.tools import BaseTool
 
 from blc.tools.recipe_tools.arguments import run_recipe_tool
 from blc.tools.recipe_tools.book import RecipeBook
+from blc.tools.recipe_tools.scaling import RECIPE_TOOL_NAME
 
-RECIPE_TOOL_NAME = "scale_recipe"
 RECIPE_TOOL_DESCRIPTION = (
     "Scales a recipe's ingredient amounts to a batch size and gives the method steps. "
     "You must use this tool instead of calculating the amounts yourself. If the result "

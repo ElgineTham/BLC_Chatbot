@@ -7,8 +7,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from fractions import Fraction
 
-from blc.pull_sheet import EACH, GALLON, BeoLine, Catalog
-from blc.pull_sheet.text import guests_to_gallons, norm
+from blc.tools.bev_tools.amounts import ordered_amounts
+from blc.tools.bev_tools.catalog import Catalog
+from blc.tools.bev_tools.catalog_entries import EACH, GALLON, Package
+from blc.tools.bev_tools.gallons import guests_to_gallons
+from blc.tools.bev_tools.names import norm
 
 GALLON_UNITS: tuple[str, ...] = ("gallon", "gallons", "gal")
 # Short names a user says that are not menu names (the only menu knowledge outside the JSON).
@@ -172,21 +175,23 @@ def missing_gallon_amounts(catalog: Catalog, drinks: dict[str, Sized]) -> bool:
     )
 
 
-def beo_lines(
+def plan_needs(
     catalog: Catalog, plan: Plan, guests: int | None
-) -> tuple[BeoLine, ...]:
-    """BEO lines equivalent to the plan; unknown amounts get a nominal 1."""
-    lines: list[BeoLine] = []
-    for kind, display in plan.order:
+) -> tuple[dict[str, Fraction], list[str]]:
+    """Amount per drink and the drinks in first-seen order; unknown amounts count as 1."""
+    own: dict[str, Fraction] = {}
+    first_own: dict[str, tuple[int, int]] = {}
+    package_lines: list[tuple[int, Package, Fraction]] = []
+    for idx, (kind, display) in enumerate(plan.order):
         if kind == "package":
-            lines.append(BeoLine(display, Fraction(guests or 1), ""))
+            package = catalog._packages[display]
+            package_lines.append((idx, package, guests_to_gallons(guests or 1)))
             continue
         sized = plan.own[display]
-        unit = catalog._items[display].unit
         if sized.from_guests and guests is not None:
-            lines.append(BeoLine(display, Fraction(guests), ""))
-        elif sized.amount is not None:
-            lines.append(BeoLine(display, sized.amount, unit))
+            own[display] = guests_to_gallons(guests)
         else:
-            lines.append(BeoLine(display, Fraction(1), unit))
-    return tuple(lines)
+            own[display] = sized.amount if sized.amount is not None else Fraction(1)
+        first_own[display] = (idx, 0)
+    ordered, first = ordered_amounts(catalog, own, first_own, package_lines)
+    return ordered, sorted(ordered, key=lambda name: first[name])
