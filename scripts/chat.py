@@ -28,6 +28,7 @@ from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
 
 from blc.flow import run_planned_turn  # noqa: E402
 from blc.pull_sheet import RuleFileError, load_catalog  # noqa: E402
+from blc.retrieval import DomainStore  # noqa: E402
 from blc.router import RoutedPart, route_fast  # noqa: E402
 from blc.tool_step import REJECTED_PREFIX, check_arguments  # noqa: E402
 from blc.trace import (  # noqa: E402
@@ -200,6 +201,10 @@ def build_store() -> Chroma:
         embedding_function=embeddings,
         persist_directory=str(CHROMA_DIR),
     )
+
+
+def build_domain_store() -> DomainStore:
+    return DomainStore(build_store())
 
 
 def retrieve(store: Chroma, question: str) -> list[Document]:
@@ -596,7 +601,7 @@ def main() -> int:
         )
         return 1
 
-    store = build_store()
+    store = build_domain_store()
     llm = ChatOllama(
         model=CHAT_MODEL, temperature=CHAT_TEMPERATURE, keep_alive=CHAT_KEEP_ALIVE
     )

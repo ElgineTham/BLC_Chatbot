@@ -6,10 +6,17 @@ import re
 import sys
 from pathlib import Path
 
-from langchain_chroma import Chroma
-from langchain_core.documents import Document
-from langchain_ollama import OllamaEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+_SRC = str(Path(__file__).resolve().parent.parent / "src")
+if _SRC not in sys.path:
+    sys.path.insert(0, _SRC)
+
+from langchain_chroma import Chroma  # noqa: E402
+from langchain_core.documents import Document  # noqa: E402
+from langchain_ollama import OllamaEmbeddings  # noqa: E402
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
+
+from blc.ingest import PER_BULLET_SOURCES, chunk_per_bullet  # noqa: E402
+from blc.retrieval import domain_for  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT / "data"
@@ -45,7 +52,10 @@ def hard_split(text: str, max_tokens: int = MAX_TOKENS) -> list[str]:
     return [chunk for chunk in splitter.split_text(text) if chunk.strip()]
 
 
-def chunk_markdown(text: str) -> list[str]:
+def chunk_markdown(text: str, per_bullet: bool = False) -> list[str]:
+    if per_bullet:
+        return chunk_per_bullet(text)
+
     text = text.strip()
     if not text:
         return []
@@ -120,12 +130,12 @@ def build_store() -> Chroma:
 
 def ingest_file(store: Chroma, path: Path, mtime: float) -> int:
     text = path.read_text(encoding="utf-8")
-    chunks = chunk_markdown(text)
+    source = relative_source(path)
+    chunks = chunk_markdown(text, per_bullet=source in PER_BULLET_SOURCES)
     if not chunks:
-        print(f"skip empty: {relative_source(path)}")
+        print(f"skip empty: {source}")
         return 0
 
-    source = relative_source(path)
     delete_source(store, source)
 
     documents = [
@@ -134,6 +144,7 @@ def ingest_file(store: Chroma, path: Path, mtime: float) -> int:
             metadata={
                 "source": source,
                 "category": category_for(path),
+                "domain": domain_for(source),
                 "mtime": mtime,
                 "chunk_index": index,
             },
