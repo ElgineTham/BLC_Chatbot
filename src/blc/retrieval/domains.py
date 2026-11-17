@@ -1,4 +1,4 @@
-"""Which domain (food, beverage, other) a knowledge file belongs to."""
+"""Which domain (food, beverage, napkin, other) a knowledge file belongs to."""
 
 from __future__ import annotations
 
@@ -6,10 +6,12 @@ from pathlib import PurePosixPath
 
 FOOD = "food"
 BEVERAGE = "beverage"
-DOMAINS: tuple[str, ...] = (FOOD, BEVERAGE)
+NAPKIN = "napkin"
+DOMAINS: tuple[str, ...] = (FOOD, BEVERAGE, NAPKIN)
 OTHER_DOMAIN = "other"
 
 FOOD_SOURCES = frozenset({"data/pull_sheet/menu/food.md"})
+NAPKIN_SOURCES = frozenset({"data/pull_sheet/rules/napkins.md"})
 BEVERAGE_SOURCES = frozenset(
     {"data/pull_sheet/menu/beverages.md", "data/pull_sheet/rules/beverages.md"}
 )
@@ -22,6 +24,8 @@ def domain_for(source: str) -> str:
     text = path.as_posix()
     if text in FOOD_SOURCES:
         return FOOD
+    if text in NAPKIN_SOURCES:
+        return NAPKIN
     if text in BEVERAGE_SOURCES:
         return BEVERAGE
     if path.suffix == ".md" and path.parent.as_posix() in BEVERAGE_DIRS:

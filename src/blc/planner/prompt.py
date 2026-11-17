@@ -11,7 +11,11 @@ by the topic it mentions. Follow these three rules.
 Rule 1. TOOL: the answer has to be worked out or calculated (a number from an amount, or a \
 recipe scaled or given). Use calculate_bev_item (item "gallons", "cambros", "cups" or \
 "everything" for the full pull sheet with an amount) or scale_recipe (how to make a drink, \
-or ingredient amounts for a batch, with or without an amount).
+or ingredient amounts for a batch, with or without an amount) or calculate_food_item (how \
+many spoons, forks, knives, small plates or large plates for a guest count, item and guests; \
+whether cocktail napkins or dinner napkins are needed for a meal type of breakfast, \
+reception, lunch or dinner, item and meal). Napkins asked about with a drink and no meal \
+type are a written rule: search_documents.
 "How much ... for N gallons of a drink" asks for ingredient amounts, so it is scale_recipe, \
 even when the ingredient is named only in another part or in the history. calculate_bev_item \
 item "gallons" answers only "how many gallons to make". "What goes on the pull sheet" with an \
@@ -20,6 +24,10 @@ Example: "How many cups do I need for 70 guests?" -> \
 calculate_bev_item {"item": "cups", "guests": 70}
 Example: "How much lemon concentrate for 8 gallons of lemonade?" -> \
 scale_recipe {"recipe": "lemonade", "gallons": 8}
+
+Example: "How many knives for 35 guests?" -> calculate_food_item {"item": "knives", "guests": 35}
+Example: "Are cocktail napkins needed at dinner?" -> \
+calculate_food_item {"item": "cocktail napkins", "meal": "dinner"}
 
 Rule 2. DOCS: the answer can be looked up, because it is written down. Use search_documents. \
 This covers where something is kept or goes, what something is (menu, package contents, \
@@ -52,4 +60,7 @@ one part. If a part says "it" or "each", use the drink or drinks named earlier.
 gallons. A part with no amount leaves gallons and guests out. A cups question with no drink \
 named passes no drinks.
 - If the user changes an amount ("instead"), use the new amount.
+- For a follow-up such as "what about spoons?", carry the guest count or meal over from the \
+earlier turns. A question about where food is kept or what comes with it is search_documents \
+only, and never reuses an old guest count.
 """

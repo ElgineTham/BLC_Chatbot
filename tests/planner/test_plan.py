@@ -53,12 +53,16 @@ def test_search_tool_placeholder_returns_empty_string():
 
 
 def test_planner_tools_identity_and_order():
-    """Covers: AC-1 (right), EC-1. PLANNER_TOOLS is (SEARCH_TOOL, PLANNER_BEV_TOOL, RECIPE_TOOL) by identity."""
+    """Covers: AC-1 (right), EC-1; spec 030 AC-1. PLANNER_TOOLS is (SEARCH_TOOL, PLANNER_BEV_TOOL, RECIPE_TOOL,
+    <food tool>) by identity for the first three, the food tool (FOOD_TOOL_NAME) last."""
+    from blc.tools.food_tools import FOOD_TOOL_NAME
+
     assert isinstance(PLANNER_TOOLS, tuple)
-    assert len(PLANNER_TOOLS) == 3
+    assert len(PLANNER_TOOLS) == 4
     assert PLANNER_TOOLS[0] is SEARCH_TOOL
     assert PLANNER_TOOLS[1] is PLANNER_BEV_TOOL
     assert PLANNER_TOOLS[2] is RECIPE_TOOL
+    assert PLANNER_TOOLS[3].name == FOOD_TOOL_NAME == "calculate_food_item"
 
 
 def test_planner_tools_do_not_contain_real_bev_tool():

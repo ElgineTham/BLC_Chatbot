@@ -10,7 +10,7 @@ from domain_helpers import ROOT
 
 def test_constants():
     """Covers: AC-1 (right). DOMAINS and OTHER_DOMAIN have the documented values."""
-    assert tuple(DOMAINS) == ("food", "beverage")
+    assert tuple(DOMAINS) == ("food", "beverage", "napkin")
     assert OTHER_DOMAIN == "other"
 
 

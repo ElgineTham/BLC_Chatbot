@@ -7,10 +7,11 @@ from typing import Mapping
 
 from blc.tool_step.numbers import ALWAYS_ACCEPTED, as_number, numbers_in
 from blc.tools.bev_tools import BEV_TOOL_NAME
+from blc.tools.food_tools import FOOD_TOOL_NAME
 from blc.tools.recipe_tools import RECIPE_TOOL_NAME
 
 CHECKED_ARGUMENTS: tuple[str, ...] = ("guests", "gallons")
-CHECKED_TOOLS: frozenset[str] = frozenset({BEV_TOOL_NAME, RECIPE_TOOL_NAME})
+CHECKED_TOOLS: frozenset[str] = frozenset({BEV_TOOL_NAME, RECIPE_TOOL_NAME, FOOD_TOOL_NAME})
 
 
 @dataclass(frozen=True)

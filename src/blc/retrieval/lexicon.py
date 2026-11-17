@@ -6,14 +6,16 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from blc.retrieval.domains import BEVERAGE, FOOD
+from blc.retrieval.domains import BEVERAGE, FOOD, NAPKIN
 
 Lexicon = Mapping[str, frozenset[str]]
 
 ROOT = Path(__file__).resolve().parents[3]
 DATA_DIR = ROOT / "data"
 FOOD_FILE = Path("pull_sheet/menu/food.md")
-BEVERAGE_MENU_FILE = Path("pull_sheet/menu/beverages.md")
+NAPKIN_FILE = Path("pull_sheet/rules/napkins.md")
+NAPKIN_NAMES = frozenset({"napkin", "napkins"})
+BEVERAGE_MENU_FILE =Path("pull_sheet/menu/beverages.md")
 BEVERAGE_DIRS = ("supplies", "recipes")
 DRINKS_HEADING = "## Drinks served by the gallon"
 MIN_TOKEN_LENGTH = 4
@@ -89,4 +91,6 @@ def load_lexicon(data_dir: Path = DATA_DIR) -> Lexicon:
     for folder in BEVERAGE_DIRS:
         for path in sorted((data_dir / folder).glob("*.md")):
             _add(lexicon, _file_names(path), BEVERAGE)
+    if (data_dir / NAPKIN_FILE).is_file():
+        _add(lexicon, set(NAPKIN_NAMES), NAPKIN)
     return {name: frozenset(domains) for name, domains in lexicon.items()}
