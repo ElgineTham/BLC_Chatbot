@@ -8,7 +8,13 @@ import pytest
 
 from food_answer_helpers import GOLDEN_PATH, load_golden
 
-BUG_IDS = ("croissant-extras", "croissant-preserves", "conv-croissant-pushback")
+BUG_IDS = (
+    "croissant-extras",
+    "croissant-preserves",
+    "conv-croissant-pushback",
+    "croissant-extras-we",
+    "conv-croissant-bring-yesno",
+)
 
 
 @pytest.fixture(scope="module")
@@ -73,12 +79,20 @@ def test_at_least_four_conversations(cases):
 
 
 def test_bug_cases_present_and_must_pass(cases):
-    """Covers: GOLD-4, AC-1 (right/wrong). The three bug cases exist and have must_pass true."""
+    """Covers: GOLD-4, AC-1 (right/wrong). The five bug cases exist and have must_pass true."""
     by_id = {c["id"]: c for c in cases}
     missing = [i for i in BUG_IDS if i not in by_id]
     assert not missing, f"missing bug cases: {missing}"
     not_must = [i for i in BUG_IDS if by_id[i]["must_pass"] is not True]
     assert not not_must, f"bug cases without must_pass true: {not_must}"
+
+
+def test_new_bug_case_shapes(cases):
+    """Covers: GOLD-4, CONV-5, ANS-20 (right). croissant-extras-we has one turn; conv-croissant-bring-yesno has two."""
+    by_id = {c["id"]: c for c in cases}
+    assert len(by_id["croissant-extras-we"]["turns"]) == 1
+    assert len(by_id["conv-croissant-bring-yesno"]["turns"]) == 2
+    assert len(by_id["conv-croissant-pushback"]["turns"]) == 5
 
 
 def test_must_pass_is_bool(cases):

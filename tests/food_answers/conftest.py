@@ -52,18 +52,22 @@ def models_ready(ollama_models):
 @pytest.fixture(scope="session")
 def store(models_ready):
     """The real store (read only); skips if food.md has not been ingested."""
-    from chat import CHROMA_DIR, build_store
+    from chat import CHROMA_DIR, build_domain_store, build_store
 
     if not Path(CHROMA_DIR).exists():
         pytest.skip(f"Chroma store not found at {CHROMA_DIR}: run scripts/ingest.py first.")
+    # build_store() is used only to inspect metadata; the flow gets build_domain_store() (AC-9).
     chroma = build_store()
     data = chroma.get(include=["metadatas"])
-    sources = {(m or {}).get("source", "") for m in (data.get("metadatas") or [])}
+    metas = [m or {} for m in (data.get("metadatas") or [])]
+    sources = {m.get("source", "") for m in metas}
     if not any(s.endswith(fah.FOOD_SOURCE) for s in sources):
         pytest.skip(
             f"No documents with source {fah.FOOD_SOURCE} in the store: run scripts/ingest.py first."
         )
-    return chroma
+    if any(not m.get("domain") for m in metas):
+        pytest.skip("Store has chunks without a 'domain' label: wipe .chroma/ and run scripts/ingest.py.")
+    return build_domain_store()
 
 
 @pytest.fixture(scope="session")

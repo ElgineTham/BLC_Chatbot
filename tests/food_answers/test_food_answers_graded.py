@@ -1,4 +1,4 @@
-"""ANS-1..19, CONV-1..4, RATE-1..3 (AC-3, AC-4, AC-5, AC-6): graded answers from the real flow.
+"""ANS-1..20, CONV-1..5, RATE-1..3 (AC-3, AC-4, AC-5, AC-6): graded answers from the real flow.
 
 Eval; needs Ollama, qwen2.5:7b, the judge model and an ingested food.md (skips otherwise, AC-7).
 Only the pass rate (AC-3) and the must_pass turns (AC-4) are asserted; per-case tests exist so
@@ -28,7 +28,7 @@ def test_overall_pass_rate(graded):
 
 
 def test_must_pass_turns_all_pass(graded):
-    """Covers: RATE-2, ANS-1, ANS-2, CONV-1, AC-4 (right/wrong), AC-6. Every turn of every must_pass case passes."""
+    """Covers: RATE-2, ANS-1, ANS-2, ANS-20, CONV-1, CONV-5, AC-4 (right/wrong), AC-6. Every turn of every must_pass case passes."""
     must = [r for turns in graded.values() for r in turns if r.must_pass]
     assert must, "no must_pass turns were graded"
     failing = [r for r in must if not r.passed]
@@ -36,7 +36,7 @@ def test_must_pass_turns_all_pass(graded):
 
 
 def test_case_reported(case_id, graded):
-    """Covers: ANS-1..ANS-19, CONV-1..CONV-4, AC-3, AC-4, AC-6. One result per case, shown by id in the run.
+    """Covers: ANS-1..ANS-20, CONV-1..CONV-5, AC-3, AC-4, AC-6. One result per case, shown by id in the run.
 
     Only must_pass cases are asserted here (AC-4); other cases count toward the rate in
     test_overall_pass_rate and their verdicts are printed.
@@ -59,6 +59,6 @@ def test_graded_turns_match_golden_file(graded):
 
 
 def test_replies_are_non_empty(graded):
-    """Covers: ANS-1..ANS-19, CONV-1..CONV-4 (boundary). The real flow returned a non-blank reply for each turn."""
+    """Covers: ANS-1..ANS-20, CONV-1..CONV-5 (boundary). The real flow returned a non-blank reply for each turn."""
     blank = [(r.case_id, r.turn) for turns in graded.values() for r in turns if not r.reply.strip()]
     assert not blank, f"blank replies at (case, turn): {blank}"

@@ -1,10 +1,12 @@
 # Spec 027: Food answer-quality eval (single and multi-turn)
 
-- **Status:** approved
-- **Date:** 2026-11-16
+- **Status:** approved (revision 1)
+- **Date:** 2026-11-16 (revision 1: 2026-11-16)
 
 ## 1. Goal
 Retrieval for `food.md` is now measured (specs 025, 026), but a manual chat showed the model can have the right chunks and still answer wrongly: it said croissants need nothing with them and that they "do not come with raspberry preserves", then repeated that after the user pushed back. This spec adds an **answer-quality eval** for the food menu that runs the real chat flow, grades each reply with the LLM judge against a reference answer, and includes **multi-turn conversations** (pairing questions, vague follow-ups, user pushback). It only measures; fixes are decided afterwards.
+
+**Revision 1** (after the first run scored 76.67% and a manual chat re-test): the eval now runs through `build_domain_store()`, the store `chat.py main()` uses since spec 028; five references that read ambiguously ("nothing else is needed") or judged wrongly are reworded, the oat-milk case no longer claims the documents don't mention oat milk, and two cases from the manual chat of 2026-11-16 are added (`croissant-extras-we`, `conv-croissant-bring-yesno`, both must pass). The pass thresholds are unchanged.
 
 ## 2. Out of scope
 - Changing the chat flow, prompts, planner, router, retrieval, models, `TOP_K`, or the judge (`src/blc/judge/`). A failing answer is reported, not fixed here.
@@ -22,6 +24,7 @@ CHROMA_DIR: Path
 CHAT_MODEL: str                 # "qwen2.5:7b"
 CHAT_TEMPERATURE: int           # 0
 def build_store() -> Chroma: ...   # opens the real .chroma/
+def build_domain_store() -> DomainStore: ...   # what main() uses; its chunks carry a `domain` label (spec 028)
 
 # src/blc/flow  (from blc.flow import run_planned_turn, TurnOutcome)
 def run_planned_turn(
@@ -36,7 +39,7 @@ def judge_answer(question: str, reference: str, answer: str, llm=None) -> Verdic
 # Verdict.passed: bool, Verdict.reason: str
 ```
 
-**Pipeline under test** (what the live chat does): `llm = ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE)`; `store = build_store()`; for each case start with `history = []`; for each turn call `run_planned_turn(llm, store, turn.question, history)`, take `outcome.reply`, set `history = outcome.history`, and grade `judge_answer(turn.question, turn.reference, outcome.reply)`.
+**Pipeline under test** (what the live chat does): `llm = ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE)`; `store = build_domain_store()`; for each case start with `history = []`; for each turn call `run_planned_turn(llm, store, turn.question, history)`, take `outcome.reply`, set `history = outcome.history`, and grade `judge_answer(turn.question, turn.reference, outcome.reply)`.
 
 **Golden file (new data, written by the planner):** `evals/answers/food_answers.jsonl`, one JSON object per line:
 `{"id": str, "turns": [{"question": str, "reference": str}, ...], "must_pass": bool, "notes": str}`.
@@ -49,17 +52,18 @@ Files read: `evals/answers/food_answers.jsonl`, the real `.chroma/`. Tests write
 ## 4. Inputs and outputs
 | Input | Type / format | Valid range | Output / effect |
 |---|---|---|---|
-| Golden case | JSON line | 23 cases, 30 turns | one reply per turn from the real flow, one verdict per turn |
+| Golden case | JSON line | 25 cases, 33 turns | one reply per turn from the real flow, one verdict per turn |
 | Calibration case | question, reference, answer, expected verdict | 6 cases in §6.2 | `judge_answer` verdict compared with expected |
 
 ## 5. Acceptance criteria
-- **AC-1:** The golden file has between 20 and 40 turns in total and unique non-empty ids; every case has at least one turn; every question and reference is non-blank; every reference starts with `Required:`; `must_pass` is a bool; at least 4 cases have two or more turns; the cases with ids `croissant-extras`, `croissant-preserves` and `conv-croissant-pushback` exist and have `must_pass` true.
+- **AC-1:** The golden file has between 20 and 40 turns in total and unique non-empty ids; every case has at least one turn; every question and reference is non-blank; every reference starts with `Required:`; `must_pass` is a bool; at least 4 cases have two or more turns; the cases with ids `croissant-extras`, `croissant-preserves`, `conv-croissant-pushback`, `croissant-extras-we` and `conv-croissant-bring-yesno` exist and have `must_pass` true.
 - **AC-2** *(eval)*: **Judge gate.** With the real judge (`llm=None`), every calibration case in §6.2 gets its expected verdict. If any does not, every graded test in AC-3 and AC-4 fails (or errors) with a message naming the failed calibration ids, instead of grading.
 - **AC-3** *(eval)*: Across all turns of all cases, the fraction whose verdict is `passed=True` is at least `MIN_PASS_RATE`.
 - **AC-4** *(eval)*: Every turn of every case with `must_pass` true passes individually (the bug cases).
+- **AC-9** *(revision 1, manual)*: The `graded` flow uses `build_domain_store()` and not `build_store()`; the tester changes only the store fixture and the GOLD tests that name the bug cases or turn counts in `tests/food_answers/`.
 - **AC-5** *(eval)*: Conversations carry history: turn *n* is run with the history returned by turn *n−1* of the same case, never with another case's history. Each case starts with an empty history. *(verified `manual`: the planner reads the test.)*
 - **AC-6** *(eval)*: When the rate is below `MIN_PASS_RATE` or a `must_pass` turn fails, the failure message lists every failing turn with: case id, turn number, question, the reply, and the judge's reason. Results are shown per turn (ids visible in the run output), but only AC-3 and AC-4 are asserted.
-- **AC-7:** Eval tests skip with a clear message when Ollama is not running, when the judge model (`JUDGE_MODEL`) or `CHAT_MODEL` is not available, or when the real store has no documents with source `data/pull_sheet/menu/food.md` ("run scripts/ingest.py first").
+- **AC-7:** Eval tests skip with a clear message when Ollama is not running, when the judge model (`JUDGE_MODEL`) or `CHAT_MODEL` is not available, or when the real store has no documents with source `data/pull_sheet/menu/food.md`, or has chunks without a `domain` label ("wipe .chroma/ and run scripts/ingest.py").
 - **AC-8** *(manual)*: Only files under `tests/food_answers/` and `evals/answers/food_answers.jsonl` are added; nothing under `scripts/`, `src/` or `data/` changes; eval tests carry the `eval` marker; tests import only the names in §3; files stay under ~400 lines.
 
 ## 6. Test cases
@@ -69,7 +73,7 @@ Files read: `evals/answers/food_answers.jsonl`, the real `.chroma/`. Tests write
 | GOLD-1 | load the file | 20–40 turns in total, unique non-empty ids | AC-1 |
 | GOLD-2 | every turn | non-blank question; reference starts with `Required:` | AC-1 |
 | GOLD-3 | cases with 2+ turns | at least 4 | AC-1 |
-| GOLD-4 | the three bug cases | present, `must_pass` true | AC-1 |
+| GOLD-4 | the five bug cases (`croissant-extras`, `croissant-preserves`, `conv-croissant-pushback`, `croissant-extras-we`, `conv-croissant-bring-yesno`) | present, `must_pass` true | AC-1 |
 | GOLD-5 | `must_pass` of every case | is a bool | AC-1 |
 
 ### 6.2 CAL (judge gate, eval; the expected verdict must be returned)
@@ -103,7 +107,8 @@ Files read: `evals/answers/food_answers.jsonl`, the real `.chroma/`. Tests write
 | ANS-16 | `popcorn-where` | metal rack in the service room | AC-3 |
 | ANS-17 | `water-where` | beverage cooler | AC-3 |
 | ANS-18 | `abstain-cupcakes` | says it does not know; no location given | AC-3 |
-| ANS-19 | `abstain-oat-milk` | says it does not know; no location given | AC-3 |
+| ANS-19 | `abstain-oat-milk` | gives no location for oat milk | AC-3 |
+| ANS-20 | `croissant-extras-we`: "Do we need to bring anything with croissants?" | raspberry preserves, service cooler (**must pass**) | AC-3, AC-4 |
 
 ### 6.4 CONV (conversations, eval)
 | ID | Input / situation | Expected | Covers |
@@ -112,12 +117,13 @@ Files read: `evals/answers/food_answers.jsonl`, the real `.chroma/`. Tests write
 | CONV-2 | `conv-bagels-pronoun` | "And what goes with them?" gives cream cheese, service cooler | AC-3, AC-5 |
 | CONV-3 | `conv-box-meals-pushback` | user's wrong "only service cooler" is corrected | AC-3, AC-5 |
 | CONV-4 | `conv-yogurt-honey` | "And the honey that goes with it?" gives the pull-area racks | AC-3, AC-5 |
+| CONV-5 | `conv-croissant-bring-yesno`: "Do we need to bring anything with croissants?" then "So we should bring raspberry preserves right?" | both turns say yes, with the preserves from the service cooler (**must pass**) | AC-3, AC-4, AC-5 |
 
 ### 6.5 RATE (aggregate and reporting, eval)
 | ID | Input / situation | Expected | Covers |
 |---|---|---|---|
-| RATE-1 | all 30 turns | pass rate ≥ `MIN_PASS_RATE` | AC-3 |
-| RATE-2 | the three `must_pass` cases | every turn passes | AC-4 |
+| RATE-1 | all 33 turns | pass rate ≥ `MIN_PASS_RATE` | AC-3 |
+| RATE-2 | the five `must_pass` cases | every turn passes | AC-4 |
 | RATE-3 | any failure | message lists case id, turn, question, reply, judge reason | AC-6 |
 | RATE-4 | judge gate fails | graded tests fail naming the CAL ids | AC-2 |
-| RATE-5 | Ollama down / model missing / food.md not in store | tests skip with a message | AC-7 |
+| RATE-5 | Ollama down / model missing / food.md not in store / chunks without `domain` | tests skip with a message | AC-7 |
