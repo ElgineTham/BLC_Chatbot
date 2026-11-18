@@ -15,13 +15,26 @@ No cloud LLM API is required for the current setup: embeddings use `nomic-embed-
 | Piece | Role |
 |--------|------|
 | `data/` | Source of truth (markdown recipes & supplies) |
-| `scripts/ingest.py` | Load → chunk → embed → store in Chroma |
-| `scripts/chat.py` | Employee Q&A loop (retrieve + generate) |
-| `scripts/voice_chat.py` | Push-to-talk voice version of the chat loop |
-| `tests/` | Retrieval & generation eval runners (pytest) |
+| `backend/scripts/ingest.py` | Load → chunk → embed → store in Chroma |
+| `backend/scripts/chat.py` | Employee Q&A loop in the terminal |
+| `backend/scripts/web.py` | Web chat: API + the page in `frontend/` (spec 032) |
+| `backend/scripts/voice_chat.py` | Push-to-talk voice version of the chat loop |
+| `backend/src/blc/` | Feature packages the scripts use |
+| `backend/tests/` | pytest suites (unit, integration, eval) |
+| `frontend/` | The web chat page (HTML/CSS/JS, images in `frontend/assets/`) |
 | `evals/` | Golden Q&A sets for measuring RAG quality |
 | Chroma (`.chroma/`) | Vector database (HNSW ANN search) |
 | Ollama | Local embedding + chat models |
+
+---
+
+## Web chat
+
+```bash
+poetry run python backend/scripts/web.py                 # http://127.0.0.1:8000 on this Mac
+poetry run python backend/scripts/web.py --host 0.0.0.0  # also reachable from a phone on the same Wi-Fi
+```
+Needs Ollama running and the Chroma store (`backend/scripts/ingest.py`). The chat history lives in the browser tab; "New chat" clears it.
 
 ---
 
@@ -30,20 +43,20 @@ No cloud LLM API is required for the current setup: embeddings use `nomic-embed-
 You can ask questions out loud and hear the answer read back:
 
 ```bash
-poetry run python scripts/voice_chat.py
+poetry run python backend/scripts/voice_chat.py
 ```
 
 - **Push-to-talk:** press Enter to start recording, ask your question, then press Enter again to stop. The bot prints what it heard (`You (heard): …`), prints the answer, then reads it aloud. Say "quit", "exit" or "bye" (or press Ctrl+C) to leave. If the recording is too short or silent, it prints `(didn't catch that)`.
 - **Spoken answers skip clutter:** file paths, `[1]`-style citations and markdown are printed but not read aloud.
 - **First run downloads models** into `.models/` (gitignored): the faster-whisper `small.en` speech-to-text model and the Piper `en_US-lessac-medium` voice. After that, voice chat works fully offline and audio never leaves your machine.
 - **macOS microphone permission:** the first time you record, macOS asks whether your terminal app (Terminal, iTerm, VS Code, …) may use the microphone. Allow it. If you denied it earlier, enable it under System Settings → Privacy & Security → Microphone, then restart the terminal.
-- You still need the Chroma store (`scripts/ingest.py`) and Ollama running, just as for text chat.
+- You still need the Chroma store (`backend/scripts/ingest.py`) and Ollama running, just as for text chat.
 
 ---
 
 ## Workflow (user prompt → answer)
 
-This is what happens each time an employee asks a question in `scripts/chat.py`:
+This is what happens each time an employee asks a question in `backend/scripts/chat.py`:
 
 ```text
 User prompt

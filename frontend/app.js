@@ -31,14 +31,27 @@ function saveHistory() {
 function laurelSvg() {
   const ns = "http://www.w3.org/2000/svg";
   const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("class", "laurel");
+  svg.setAttribute("class", "laurel active");
   svg.setAttribute("data-state", "idle");
+  svg.setAttribute("viewBox", "0 0 64 64");
   svg.setAttribute("aria-hidden", "true");
   svg.setAttribute("focusable", "false");
-  const use = document.createElementNS(ns, "use");
-  use.setAttribute("href", "#laurel");
-  svg.appendChild(use);
+  fillLaurel(svg);
   return svg;
+}
+
+// Each Laurel gets its own copy of the drawing. A <use> reference would hide the
+// parts from the state CSS, so they would never animate.
+function fillLaurel(svg) {
+  const symbol = document.getElementById("laurel");
+  Array.from(symbol.children).forEach((part) => svg.appendChild(part.cloneNode(true)));
+}
+
+// Only the Laurel by the input and the one on the newest bot message move.
+function retireOldLaurels(except) {
+  messagesEl.querySelectorAll(".row .laurel.active").forEach((s) => {
+    if (s !== except) s.classList.remove("active");
+  });
 }
 
 function addRow(kind, text) {
@@ -51,6 +64,7 @@ function addRow(kind, text) {
   let laurel = null;
   if (kind !== "user") {
     laurel = laurelSvg();
+    retireOldLaurels(laurel);
     row.appendChild(laurel);
   }
   row.appendChild(bubble);
@@ -205,4 +219,5 @@ document.querySelectorAll(".chip").forEach((chip) => {
 });
 document.getElementById("new-chat").addEventListener("click", newChat);
 
+document.querySelectorAll("svg.laurel").forEach(fillLaurel);
 renderSaved();

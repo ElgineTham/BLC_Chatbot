@@ -1,6 +1,6 @@
 # Spec 033: Move the backend into `backend/`
 
-- **Status:** draft
+- **Status:** approved (done: closed by the user; see closing note)
 - **Date:** 2026-11-17
 
 ## 1. Goal
@@ -100,3 +100,8 @@ New tests go in `backend/tests/layout/test_layout.py`. `REPO_ROOT` in tests = th
 | SUITE-1 | the whole unit suite after the move | failing/erroring IDs == baseline file (`tests/` → `backend/tests/`); new LAYOUT/PATHS tests pass | AC-6 |
 | SUITE-2 *(manual)* | `git diff -M --stat` and the content diffs | only renames plus the path edits AC-7 allows | AC-7 |
 | SUITE-3 *(manual)* | `poetry run python backend/scripts/ingest.py` on unchanged `data/`; `backend/scripts/web.py` starts | nothing re-embedded; server serves the page | AC-4, AC-5 |
+
+## Closing note (2026-11-17)
+Closed by the user. Unit suite after the move: 3929 passed, 27 failed, 3 skipped, 2 collection errors. The failing/erroring IDs match `033-baseline-failures.txt` one for one; the 63 new LAYOUT/PATHS tests pass, including PATHS-5 against the real store. Manual: all 253 tracked files are present under `backend/`, and the 25 content changes are path-only (AC-7). `web.py`, `trace_flow.py` and `pull_sheet.py` run from `backend/scripts/`. `ingest.py` was not run, because unrelated spec 031 data may legitimately change `.chroma/`. Stale `__pycache__` folders were removed.
+
+Carried over: `backend/tests/pull_sheet/test_structure.py::test_ac6_cli_from_project_root` now runs from `backend/`, not the repo root (its `ROOT` is still `parents[2]`). Fix it in the next spec that touches tests.

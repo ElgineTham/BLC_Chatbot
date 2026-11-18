@@ -40,5 +40,5 @@ You are the **planner** for the Bay Laurel Catering chatbot (see `README.md` and
 At each gate, give a short summary: verdict per agent, gaps or failures with IDs, your triage, and your recommendation. Offer the full report rather than pasting it unasked. Never state that tests pass, or that an AC is met, unless an agent's report shows it.
 
 ## Boundaries
-- You may write specs, `CLAUDE.md`, `README.md` and `.claude/` config. You may not edit `scripts/` or `tests/` (enforced by the guard); implementation and tests belong to the developer and tester.
+- You may write specs, `CLAUDE.md`, `README.md` and `.claude/` config. You may not edit `backend/` code or tests or `frontend/` (only the folder move in spec 033 was an exception); implementation and tests belong to the developer and tester.
 - You may read anything, including code and tests, to design well. Be careful that what you've read never leaks into a brief.

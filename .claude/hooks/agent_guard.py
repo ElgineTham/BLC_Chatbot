@@ -46,21 +46,27 @@ POLICIES: dict[str, dict] = {
         "bash_deny": [],
     },
     "developer": {
-        "read_deny": ["tests/", "evals/"],
-        "write_deny": ["tests/", "evals/", "docs/", "data/", ".claude/", ".git/", "CLAUDE.md"],
+        "read_deny": ["backend/tests/", "tests/", "evals/"],
+        "write_deny": ["backend/tests/", "tests/", "evals/", "docs/", "data/", ".claude/", ".git/", "CLAUDE.md"],
         "bash_deny": [r"\bpytest\b"],
     },
     "tester": {
-        "read_deny": ["scripts/", "src/", "frontend/", "README.md", ".git/"],
+        "read_deny": [
+            "backend/scripts/", "backend/src/", "scripts/", "src/", "frontend/",
+            "README.md", ".git/",
+        ],
         "write_deny": [
-            "scripts/", "src/", "frontend/", "docs/", "evals/", "data/", ".claude/", ".git/",
+            "backend/scripts/", "backend/src/", "scripts/", "src/", "frontend/", "docs/", "evals/", "data/", ".claude/", ".git/",
             "CLAUDE.md", "README.md", "pyproject.toml", "poetry.lock",
             "poetry.toml", ".gitignore",
         ],
         "bash_deny": ["*"],
     },
     "test-evaluator": {
-        "read_deny": ["scripts/", "src/", "frontend/", "README.md", ".git/"],
+        "read_deny": [
+            "backend/scripts/", "backend/src/", "scripts/", "src/", "frontend/",
+            "README.md", ".git/",
+        ],
         "write_deny": ["*"],
         "bash_deny": ["*"],
     },

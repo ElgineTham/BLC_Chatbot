@@ -10,38 +10,38 @@ Internal RAG chatbot for Bay Laurel Catering employees. See `README.md` for the 
 - Knowledge source: markdown under `data/` (gitignored)
 
 ## Layout
-- `scripts/ingest.py` — chunk + embed `data/**/*.md` into Chroma (incremental by mtime)
-- `scripts/chat.py` — interactive chat. `run_turn` is the real flow and returns a stage trace: retrieve → router (TOOL / DOCS / BOTH) → tool step → answer; each stage is logged to the `blc.flow` logger (spec 011). `answer_turn` is built on it.
-- `scripts/trace_flow.py` — prints the stages of one question (`--generate` adds the answer, `--json` for data, `--history PATH` for follow-ups)
-- `scripts/voice_chat.py` — push-to-talk voice chat (spec 001)
-- `scripts/pull_sheet.py` — beverage pull sheet from a BEO (spec 002); menu and rules in `data/pull_sheet/`
-- `src/blc/` — feature packages; entry points in `scripts/` import from here:
-  - `router/` — fast router (spec 013): splits the question in code, labels each part with one letter, names the tool from a lookup table (`registry.py`: name, one-line purpose, keywords, available)
-  - `tools/bev_tools/` — the beverage calculator tool `calculate_bev_item` (spec 005); `tool_step/` — its argument check (spec 009)
-  - `trace/` — stage trace types, formatter, JSON converter (spec 011)
-  - `pull_sheet/` — pull sheet calculation (specs 002, 003); `judge/` — answer judge used by evals (spec 004)
-- `tests/` — pytest suites
-- `evals/retrieval/golden.jsonl` — golden Q&A cases
-- `docs/specs/` — feature specs (`TEMPLATE.md` is the format)
+The repo is split into `backend/` (all Python) and `frontend/` (the web page). Project content and the Poetry project stay at the root.
+- `backend/scripts/` — entry points:
+  - `ingest.py` — chunk + embed `data/**/*.md` into Chroma (incremental by mtime)
+  - `chat.py` — terminal chat. `main()` runs the planned flow (`blc.flow.run_planned_turn`, spec 019); `run_turn` / `answer_turn` are the older router flow with a stage trace (spec 011), still used by `trace_flow.py` and `voice_chat.py`
+  - `web.py` — web chat: FastAPI API + serves `frontend/` (spec 032)
+  - `trace_flow.py` — prints the stages of one question (`--generate`, `--json`, `--history PATH`)
+  - `voice_chat.py` — push-to-talk voice chat (spec 001)
+  - `pull_sheet.py` — beverage pull sheet from a BEO (spec 002); menu and rules in `data/pull_sheet/`
+- `backend/src/blc/` — feature packages the entry points import (e.g. `flow/`, `planner/`, `router/`, `tools/`, `retrieval/`, `trace/`, `pull_sheet/`, `judge/`, `web/`)
+- `backend/tests/` — pytest suites
+- `frontend/` — the web chat page: plain HTML/CSS/JS, no build step; every image in `frontend/assets/`
+- Root: `data/` (knowledge, gitignored), `evals/` (golden sets), `docs/specs/` (specs; `TEMPLATE.md` is the format), `logs/`, `.chroma/`, `pyproject.toml`, `poetry.lock`
 
 ## Commands
 ```bash
 poetry install
-poetry run python scripts/ingest.py
-poetry run python scripts/chat.py
-poetry run python scripts/trace_flow.py "Where is the coffee?"   # show the stages for one question
+poetry run python backend/scripts/ingest.py
+poetry run python backend/scripts/chat.py
+poetry run python backend/scripts/web.py            # web chat on http://127.0.0.1:8000 (--host 0.0.0.0 for phones)
+poetry run python backend/scripts/trace_flow.py "Where is the coffee?"
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest            # all tests
 PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest -m "not integration and not eval"   # unit only
 ```
-`pyproject.toml` sets `pythonpath = ["scripts"]`, so tests import modules directly (e.g. `from chat import retrieve`).
+`pyproject.toml` sets `pythonpath = ["backend/scripts", "backend/src"]`, so tests import modules directly (e.g. `from chat import retrieve`, `import blc.flow`).
 
 ## Code structure
 Applies to all new code and tests unless a spec says otherwise.
-- **Entry points live in `scripts/`; feature code lives in `src/blc/<feature>/`.** An entry point (e.g. `scripts/pull_sheet.py`) holds the CLI and nothing else: it puts `src/` on `sys.path`, re-exports the feature's public API (so `from pull_sheet import …` keeps working for tests), defines `main()` (argument parsing, reading input files, calling the package, printing, exit codes) and runs it under `if __name__ == "__main__"`. Everything that computes or validates lives in the package. The package sits under `blc/` so its name never clashes with the entry point's name.
+- **Entry points live in `backend/scripts/`; feature code lives in `backend/src/blc/<feature>/`; page code lives in `frontend/`.** An entry point (e.g. `backend/scripts/pull_sheet.py`) holds the CLI and nothing else: it puts `backend/src/` on `sys.path`, re-exports the feature's public API (so `from pull_sheet import …` keeps working for tests), defines `main()` (argument parsing, reading input files, calling the package, printing, exit codes) and runs it under `if __name__ == "__main__"`. Everything that computes or validates lives in the package. The package sits under `blc/` so its name never clashes with the entry point's name.
 - **Split modules by purpose, i.e. by the job the code does** (e.g. `units.py` converts units, `cambros.py` chooses cambros, `sheet.py` builds the full sheet from the rules), not by kind of thing. Each module keeps its own constants, errors and small data classes at the top of the same file. Don't create catch-all modules such as `constants.py`, `errors.py`, `models.py`, `types.py` or `utils.py`. Something used by several modules lives in the module whose job owns it (e.g. a file-format error lives with the code that reads that file), and the others import it from there.
 - **Calculation modules do no I/O:** no file reading, printing or network access; they take data in and return data out. Reading files and printing happen at the edges (the loaders and the entry point's CLI).
 - **Size guideline, not a hard rule:** aim for about 250 lines per file. Split a file when it starts doing more than one job, not just to hit a number. Keep functions readable rather than counting their lines.
-- **Tests** live in `tests/<feature>/test_<area>.py`, grouped by spec section (not by code module), with shared fixtures and helpers in `tests/<feature>/conftest.py`. About 400 lines per test file. Tests still import only the spec's interface contract.
+- **Tests** live in `backend/tests/<feature>/test_<area>.py`, grouped by spec section (not by code module), with shared fixtures and helpers in `backend/tests/<feature>/conftest.py`. About 400 lines per test file. Tests still import only the spec's interface contract.
 
 ## Test layers
 - **Unit:** Ollama and Chroma mocked/faked; deterministic; no network.
@@ -51,7 +51,7 @@ Applies to all new code and tests unless a spec says otherwise.
 ## Team workflow
 The **planner** runs as the main session, started with `claude --agent planner`. A plain `claude` session is not the planner: it lacks the planner instructions and is not restricted by the guard. Features go through a spec in `docs/specs/NNN-<name>.md`, approved by the user, then:
 
-1. `developer` (implements the spec, never sees `tests/`) and `tester` (writes tests from the spec only, never sees source code, runs nothing) start at the same time.
+1. `developer` (implements the spec, never sees `backend/tests/`) and `tester` (writes tests from the spec only, never sees source code, runs nothing) start at the same time.
 2. When the tester finishes, `test-evaluator` audits the tests against the spec (no source). A FAIL stops the round and goes to the user.
 3. Once the test-evaluator passes and the developer is done, `implementation-evaluator` runs the tests against the code and diagnoses failures.
 4. The planner reports to the user.
