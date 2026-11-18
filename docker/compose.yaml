@@ -21,3 +21,4 @@ services:
           create_host_path: false
     environment:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}

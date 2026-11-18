@@ -16,6 +16,8 @@ def test_api13_real_answerer_with_follow_up():
     load_dotenv(REPO_ROOT / ".env")
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set (Claude chat model, spec 039)")
     if not (REPO_ROOT / ".chroma").exists():
         pytest.skip(".chroma/ is missing")
 

@@ -48,7 +48,9 @@ def models_ready(ollama_models):
     # Spec 037: only the judge runs on Ollama; the chat model and embeddings need GOOGLE_API_KEY.
     load_dotenv()
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
-        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini.")
+        pytest.skip("GOOGLE_API_KEY is not set; the embeddings run on Gemini.")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     if not fah.has_model(ollama_models, JUDGE_MODEL):
         pytest.skip(f"Ollama model {JUDGE_MODEL!r} is not available; run: ollama pull {JUDGE_MODEL}")
     return True

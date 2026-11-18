@@ -60,10 +60,12 @@ def offline(monkeypatch, tmp_path):
 
 @pytest.fixture
 def key_missing(monkeypatch):
+    """Spec 039: only the embeddings need GOOGLE_API_KEY; the chat model builds (it needs ANTHROPIC_API_KEY)."""
+
     def boom(*a, **k):
         raise chat.MissingApiKeyError("GOOGLE_API_KEY is not set")
 
-    monkeypatch.setattr(chat, "build_chat_model", boom)
+    monkeypatch.setattr(chat, "build_chat_model", lambda *a, **k: object())
     monkeypatch.setattr(chat, "build_embeddings", boom)
     monkeypatch.setattr(ingest, "build_embeddings", boom)
 
@@ -173,7 +175,7 @@ def test_chat_has_no_ollama_names(name):
 
 def test_model_constants():
     """Covers: AC-12 (boundary). Exact model names, and chat/ingest agree on the embedding model."""
-    assert chat.CHAT_MODEL == "gemini-3.5-flash-lite"
+    assert chat.CHAT_MODEL == "claude-haiku-4-5"  # spec 039
     assert chat.EMBED_MODEL == ingest.EMBED_MODEL == "gemini-embedding-2"
 
 

@@ -43,14 +43,14 @@ def no_key(monkeypatch):
 
 @pytest.fixture
 def live_key():
-    """Real key for integration tests; loads .env from the repo root; skips when absent."""
+    """Presence check for integration tests (spec 039 AC-4: never returns the key value); loads .env from the
+    repo root; skips when absent."""
     try:
         from dotenv import load_dotenv
 
         load_dotenv(ROOT / ".env")
     except ImportError:  # pragma: no cover
         pass
-    key = os.environ.get("GOOGLE_API_KEY", "").strip()
-    if not key:
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set")
-    return key
+    return True

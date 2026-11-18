@@ -248,6 +248,8 @@ def ollama_available():
     load_dotenv()
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set; set it to run the food wiring eval.")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     return True
 
 

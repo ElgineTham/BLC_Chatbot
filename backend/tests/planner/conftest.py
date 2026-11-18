@@ -354,6 +354,8 @@ def ollama_available():
     from dotenv import load_dotenv
 
     load_dotenv()
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set; set it to run the planner eval.")
     return True

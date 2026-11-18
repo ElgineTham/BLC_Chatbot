@@ -30,6 +30,7 @@ from blc.flow import run_planned_turn  # noqa: E402
 from blc.history import HISTORY_TOKEN_LIMIT, summarize_if_long  # noqa: E402,F401
 from blc.ingest import StoreModelMismatchError, check_store_model  # noqa: E402,F401
 from blc.llm import (  # noqa: E402
+    CHAT_API_KEY_ENV,  # noqa: F401
     CHAT_MODEL,
     EMBED_MODEL,
     MissingApiKeyError,

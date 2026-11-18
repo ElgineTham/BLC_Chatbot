@@ -292,6 +292,8 @@ def fast_llm():
         load_dotenv(ROOT.parent / ".env")
     except ImportError:
         pass
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; set it to run the router evals (Claude chat model, spec 039).")
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set; set it to run the router evals.")
     from chat import build_chat_model

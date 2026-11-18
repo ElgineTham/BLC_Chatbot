@@ -169,7 +169,7 @@ def _docker_ready():
         return False
 
 
-def _compose(env_extra, drop=("OLLAMA_HOST", "GOOGLE_API_KEY")):
+def _compose(env_extra, drop=("OLLAMA_HOST", "GOOGLE_API_KEY", "ANTHROPIC_API_KEY")):
     env = dict(os.environ)
     for k in drop:
         env.pop(k, None)
@@ -201,7 +201,7 @@ def test_compose_has_no_ollama_host(docker_cfg, monkeypatch):
     """Covers: AC-15 (wrong), REPO-5. No OLLAMA_HOST in the web environment, even with a host value set."""
     assert "OLLAMA_HOST" not in docker_cfg["services"]["web"]["environment"]
     monkeypatch.setenv(REMOVED_ENV[0], "http://example:1234")
-    other = _compose({"GOOGLE_API_KEY": "dummy-key"}, drop=("GOOGLE_API_KEY",))
+    other = _compose({"GOOGLE_API_KEY": "dummy-key"}, drop=("GOOGLE_API_KEY", "ANTHROPIC_API_KEY"))
     assert "OLLAMA_HOST" not in other["services"]["web"]["environment"]
 
 

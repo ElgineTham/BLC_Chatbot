@@ -385,7 +385,9 @@ def flow_env():
 
     load_dotenv()
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
-        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini (spec 037).")
+        pytest.skip("GOOGLE_API_KEY is not set; the embeddings run on Gemini (spec 037).")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     if not _chroma_exists(chat):
         pytest.skip("The Chroma store does not exist; run scripts/ingest.py first.")
 

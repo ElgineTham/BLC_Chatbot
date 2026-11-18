@@ -84,6 +84,8 @@ def gemini_key():
     load_dotenv(ROOT / ".env")
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set.")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     return True
 
 

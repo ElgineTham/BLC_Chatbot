@@ -45,7 +45,10 @@ def test_image_contents(image):
 
 def test_no_command_no_mounts_exits_1(image):
     """Covers: AC-3 (wrong), DOCKER-3. No store mounted: exit 1 and output mentions Chroma/ingest."""
-    result = run_cmd(["docker", "run", "--rm", "-e", "GOOGLE_API_KEY=invalid", image], timeout=120)
+    result = run_cmd(
+        ["docker", "run", "--rm", "-e", "GOOGLE_API_KEY=invalid", "-e", "ANTHROPIC_API_KEY=invalid", image],
+        timeout=120,
+    )
     assert result.returncode == 1
     out = (result.stdout + result.stderr).lower()
     assert "chroma" in out or "ingest" in out
@@ -62,10 +65,15 @@ def test_health_and_page(web_container):
     assert "<html" in page.lower()
 
 
-def test_chat_streams_tokens_and_done(web_container, gemini_key, repo_chroma):
-    """Covers: AC-5 (right), DOCKER-5 (spec 037 AC-20: real Gemini key, ingested repo store). Tokens then done
-    with non-empty reply."""
-    _, port = web_container(env={"GOOGLE_API_KEY": gemini_key}, real_store=True)
+def test_chat_streams_tokens_and_done(web_container, gemini_key, anthropic_key, repo_chroma):
+    """Covers: AC-5 (right), DOCKER-5 (spec 037 AC-20 and spec 039 AC-14: real Gemini and Anthropic keys,
+    ingested repo store). Tokens then done with non-empty reply."""
+    import os
+
+    _, port = web_container(
+        env={"GOOGLE_API_KEY": os.environ["GOOGLE_API_KEY"], "ANTHROPIC_API_KEY": os.environ["ANTHROPIC_API_KEY"]},
+        real_store=True,
+    )
     assert wait_for_health(port, 60)[0] == 200
     status, lines = post_chat(port, "Where is the coffee kept?")
     assert status == 200
@@ -76,9 +84,9 @@ def test_chat_streams_tokens_and_done(web_container, gemini_key, repo_chroma):
 
 
 def test_chat_with_invalid_key_returns_error_line(web_container):
-    """Covers: AC-6 (wrong), DOCKER-6 (spec 037 AC-19 equivalent). GOOGLE_API_KEY=invalid: 200, error line,
+    """Covers: AC-6 (wrong), DOCKER-6 (spec 037 AC-19 equivalent, spec 039 AC-13). Invalid keys: 200, error line,
     health still 200."""
-    _, port = web_container(env={"GOOGLE_API_KEY": "invalid"})
+    _, port = web_container(env={"GOOGLE_API_KEY": "invalid", "ANTHROPIC_API_KEY": "invalid"})
     assert wait_for_health(port, 60)[0] == 200
     status, lines = post_chat(port, "Where is the coffee kept?")
     assert status == 200
@@ -108,6 +116,8 @@ def test_docker_stop_is_clean(web_container):
 def test_ingest_in_container(image, gemini_key):
     """Covers: AC-8 (right), DOCKER-8 (spec 037: real Gemini key). Ingest of one md file exits 0 and fills the
     empty .chroma folder."""
+    import os
+
     with tempfile.TemporaryDirectory() as tmp:
         data = Path(tmp) / "data"
         chroma = Path(tmp) / "chroma"
@@ -120,7 +130,7 @@ def test_ingest_in_container(image, gemini_key):
         result = run_cmd(
             [
                 "docker", "run", "--rm",
-                "-e", f"GOOGLE_API_KEY={gemini_key}",
+                "-e", "GOOGLE_API_KEY=" + os.environ["GOOGLE_API_KEY"],
                 "-v", f"{data}:/app/data",
                 "-v", f"{chroma}:/app/.chroma",
                 image, "python", "backend/scripts/ingest.py",

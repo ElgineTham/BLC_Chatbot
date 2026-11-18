@@ -32,16 +32,29 @@ def docker_available():
 
 @pytest.fixture(scope="session")
 def gemini_key():
-    """Spec 037: a real Gemini key for tests that reach the model; skips when GOOGLE_API_KEY is unset."""
+    """Spec 037/039 AC-4: presence check only (never returns the key value); skips when GOOGLE_API_KEY is unset.
+    Tests that need the value read os.environ at the point of use."""
     import os
 
     from dotenv import load_dotenv
 
     load_dotenv(REPO_ROOT / ".env")
-    key = os.environ.get("GOOGLE_API_KEY", "").strip()
-    if not key:
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
         pytest.skip("GOOGLE_API_KEY is not set")
-    return key
+    return True
+
+
+@pytest.fixture(scope="session")
+def anthropic_key():
+    """Spec 039 AC-4: presence check only (never returns the key value); skips when ANTHROPIC_API_KEY is unset."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set")
+    return True
 
 
 @pytest.fixture
@@ -117,7 +130,7 @@ def containers():
 @pytest.fixture
 def web_container(image, containers, stamped_chroma):
     """Factory: start the default command with a stamped temp store mounted; returns (name, port).
-    GOOGLE_API_KEY defaults to 'invalid' (the web app only needs it to be non-blank to start)."""
+    GOOGLE_API_KEY and ANTHROPIC_API_KEY default to 'invalid' (the web app only needs them non-blank to start)."""
 
     def start(env=None, real_store=False):
         port = free_port()
@@ -129,7 +142,7 @@ def web_container(image, containers, stamped_chroma):
         else:
             data, chroma = stamped_chroma
             mounts = [(str(data), "/app/data"), (str(chroma), "/app/.chroma")]
-        full_env = {"GOOGLE_API_KEY": "invalid", **(env or {})}
+        full_env = {"GOOGLE_API_KEY": "invalid", "ANTHROPIC_API_KEY": "invalid", **(env or {})}
         return containers(image, port=port, mounts=mounts, env=full_env), port
 
     return start

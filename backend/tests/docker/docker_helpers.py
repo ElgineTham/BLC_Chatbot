@@ -73,12 +73,13 @@ def wait_for_health(port, seconds=60):
     return None, ""
 
 
-def compose_config(extra_env=None, remove_env=("GOOGLE_API_KEY",)):
+def compose_config(extra_env=None, remove_env=("GOOGLE_API_KEY", "ANTHROPIC_API_KEY")):
     """Return parsed `docker compose config --format json` output."""
     env = dict(os.environ)
     for k in remove_env:
         env.pop(k, None)
     env["GOOGLE_API_KEY"] = "dummy-key"  # spec 037: compose passes the shell's key through
+    env["ANTHROPIC_API_KEY"] = "dummy-anthropic-key"  # spec 039: and the chat key
     env.update(extra_env or {})
     result = run_cmd(
         ["docker", "compose", "-f", COMPOSE_FILE, "config", "--format", "json"],

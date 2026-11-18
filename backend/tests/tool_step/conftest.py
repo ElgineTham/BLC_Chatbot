@@ -135,8 +135,8 @@ def chat_model_name():
     from dotenv import load_dotenv
 
     load_dotenv()
-    if not os.environ.get("GOOGLE_API_KEY", "").strip():
-        pytest.skip("GOOGLE_API_KEY is not set; the chat model runs on Gemini.")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     return CHAT_MODEL
 
 

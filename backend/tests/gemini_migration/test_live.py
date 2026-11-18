@@ -29,15 +29,6 @@ def test_embeddings_have_768_unit_vectors(live_key):
         assert abs(math.sqrt(sum(x * x for x in v)) - 1.0) < 1e-3
 
 
-def test_chat_model_replies(live_key):
-    """Covers: AC-16 (right), LIVE-2. invoke('Reply with OK') returns non-empty text."""
-    from blc.llm import build_chat_model
-
-    out = build_chat_model().invoke("Reply with OK")
-    text = out.content if isinstance(out.content, str) else json.dumps(out.content)
-    assert text.strip()
-
-
 def _real_markdown(n):
     files = sorted(p for p in (ROOT / "data").rglob("*.md") if p.stat().st_size > 200)
     if len(files) < n:
@@ -72,20 +63,7 @@ def test_real_ingest_new_then_unchanged_and_search(live_key, tmp_path):
     assert hits[0].metadata["source"] == "data/one.md"
 
 
-@pytest.mark.parametrize(
-    "question,route",
-    [("How many cups do I need for 70 guests?", "TOOL"), ("Where is the coffee kept?", "DOCS")],
-)
-def test_planner_accepts_gemini(live_key, question, route):
-    """Covers: AC-18 (right), LIVE-4. The planner returns a plan that is not a fallback on Gemini (tool schemas
-    accepted by bind_tools). Which route the model picks is not asserted (`route` is only the question's flavour)."""
-    from blc.llm import build_chat_model
-    from blc.planner import PLAN_ROUTES, plan_question
-
-    plan = plan_question(build_chat_model(), question)
-    assert plan.fallback is False
-    assert plan.route in PLAN_ROUTES
-    assert plan.calls
+# The live chat-model tests (reply, planner) moved to tests/claude_chat/test_live.py (spec 039 AC-14).
 
 
 # ---- LIVE-5 (needs Docker)
@@ -132,7 +110,7 @@ def test_container_with_invalid_key_streams_error_and_stays_healthy(image, tmp_p
     started = _run([
         "docker", "run", "-d", "--name", name, "-p", f"{port}:8000",
         "-v", f"{data}:/app/data", "-v", f"{chroma}:/app/.chroma",
-        "-e", "GOOGLE_API_KEY=invalid", image,
+        "-e", "GOOGLE_API_KEY=invalid", "-e", "ANTHROPIC_API_KEY=invalid", image,
     ], 120)
     assert started.returncode == 0, started.stderr
     try:

@@ -8,17 +8,17 @@ It uses a **RAG (Retrieval-Augmented Generation)** approach:
 
 - Knowledge lives in markdown files under `data/` (recipes, supply locations, etc.).
 - Those docs are chunked, embedded, and stored in a local **Chroma** vector database.
-- At chat time, retrieval finds relevant chunks and **Gemini** (`gemini-3.5-flash-lite`) answers using only that context.
+- At chat time, retrieval finds relevant chunks and **Claude Haiku** (`claude-haiku-4-5`) answers using only that context.
 
-Chat and embeddings run on the Gemini API **free tier**: chat uses `gemini-3.5-flash-lite`, embeddings use `gemini-embedding-2` at 768 dimensions, and vectors stay in `.chroma/`. Ollama is no longer needed to run the chatbot; it is only needed for evals (the judge uses local `qwen2.5:7b`).
+Chat runs on **Claude Haiku** (`claude-haiku-4-5`) through the Anthropic API, paid from your Claude Console credits. Embeddings run on the Gemini API **free tier** (`gemini-embedding-2` at 768 dimensions), and vectors stay in `.chroma/`. Ollama is no longer needed to run the chatbot; it is only needed for evals (the judge uses local `qwen2.5:7b`).
 
 **Setup:**
-1. Get a free key in [Google AI Studio](https://aistudio.google.com/apikey).
-2. Put it in a `.env` file in the repo root: `GOOGLE_API_KEY=your-key`.
-3. For the GitHub Actions ingest workflow, add the same key as the repo secret `GOOGLE_API_KEY`.
+1. Get a free embeddings key in [Google AI Studio](https://aistudio.google.com/apikey) and a chat key in the [Claude Console](https://console.anthropic.com/) (add credits; setting a monthly spend limit there is recommended).
+2. Put both in a `.env` file in the repo root: `GOOGLE_API_KEY=your-key` and `ANTHROPIC_API_KEY=your-key`.
+3. For the GitHub Actions ingest workflow, add only the Google key as the repo secret `GOOGLE_API_KEY` (ingest needs no Anthropic key).
 4. Every chunk records the embedding model that built it. The committed `.chroma/` was built with `nomic-embed-text`, so it must be re-ingested (run the workflow, or `backend/scripts/ingest.py`) before chat starts; the chat entry points refuse to start on a store built by another model.
 
-**Privacy:** on the free tier Google may use prompts to improve its products, so questions must not contain client personal data.
+**Privacy:** questions are still sent to Google for embedding on the free tier, where Google may use them to improve its products, so questions must not contain client personal data.
 
 | Piece | Role |
 |--------|------|
@@ -32,7 +32,8 @@ Chat and embeddings run on the Gemini API **free tier**: chat uses `gemini-3.5-f
 | `frontend/` | The web chat page (HTML/CSS/JS, images in `frontend/assets/`) |
 | `evals/` | Golden Q&A sets for measuring RAG quality |
 | Chroma (`.chroma/`) | Vector database (HNSW ANN search) |
-| Gemini API | Chat + embedding models (free tier, `GOOGLE_API_KEY`) |
+| Anthropic API | Chat model, Claude Haiku (`ANTHROPIC_API_KEY`) |
+| Gemini API | Embedding model (free tier, `GOOGLE_API_KEY`) |
 | Ollama | Local judge model for evals only |
 
 ---
@@ -43,15 +44,15 @@ Chat and embeddings run on the Gemini API **free tier**: chat uses `gemini-3.5-f
 poetry run python backend/scripts/web.py                 # http://127.0.0.1:8000 on this Mac
 poetry run python backend/scripts/web.py --host 0.0.0.0  # also reachable from a phone on the same Wi-Fi
 ```
-Needs `GOOGLE_API_KEY` and the Chroma store (`backend/scripts/ingest.py`). The chat history lives in the browser tab; "New chat" clears it.
+Needs `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY` and the Chroma store (`backend/scripts/ingest.py`). The chat history lives in the browser tab; "New chat" clears it.
 
 ---
 
 ## Docker
 
-One image runs the web chat. It holds the code and Python dependencies only; `data/` and `.chroma/` are mounted from the host, and no Ollama is needed on the host (the model calls go to Gemini).
+One image runs the web chat. It holds the code and Python dependencies only; `data/` and `.chroma/` are mounted from the host, and no Ollama is needed on the host (chat calls go to Anthropic, embeddings to Gemini).
 
-**Prerequisites:** Docker; `GOOGLE_API_KEY` set in your shell (compose passes it to the container); `data/` and `.chroma/` present in the repo root (compose refuses to start if either is missing).
+**Prerequisites:** Docker; `ANTHROPIC_API_KEY` and `GOOGLE_API_KEY` set in your shell (compose passes both to the container); `data/` and `.chroma/` present in the repo root (compose refuses to start if either is missing).
 
 Run every command from the repo root:
 
@@ -83,7 +84,7 @@ poetry run python backend/scripts/voice_chat.py
 - **Spoken answers skip clutter:** file paths, `[1]`-style citations and markdown are printed but not read aloud.
 - **First run downloads models** into `.models/` (gitignored): the faster-whisper `small.en` speech-to-text model and the Piper `en_US-lessac-medium` voice. After that, voice chat works fully offline and audio never leaves your machine.
 - **macOS microphone permission:** the first time you record, macOS asks whether your terminal app (Terminal, iTerm, VS Code, …) may use the microphone. Allow it. If you denied it earlier, enable it under System Settings → Privacy & Security → Microphone, then restart the terminal.
-- You still need the Chroma store (`backend/scripts/ingest.py`) and `GOOGLE_API_KEY` set, just as for text chat.
+- You still need the Chroma store (`backend/scripts/ingest.py`) and both API keys set, just as for text chat.
 
 ---
 
@@ -97,7 +98,7 @@ User prompt
     → embed the prompt
     → search Chroma for top matching chunks
     → build a grounded prompt (history + context + question)
-    → Gemini generates the answer
+    → Claude Haiku generates the answer
 ```
 
 ### 1. User submits a prompt
@@ -112,7 +113,7 @@ Only prior Q&A (and summaries) are stored—not system text or retrieved chunks.
 
 If the **existing history** is over ~2000 tokens (estimated as characters ÷ 4):
 
-1. Gemini summarizes that prior history.
+1. Claude Haiku summarizes that prior history.
 2. History is replaced with a single `{role: "summary", content: "..."}` item.
 3. The **current** question is not included in the summary.
 
@@ -152,7 +153,7 @@ Embeddings are **not** passed to the LLM. Only the **retrieved text** (plus hist
 
 ### 6. Generate the result
 
-`gemini-3.5-flash-lite` reads that prompt and writes the employee-facing answer.  
+`claude-haiku-4-5` reads that prompt and writes the employee-facing answer.  
 It is instructed to use **only** the provided context, stay practical, and **cite source paths**.
 
 The reply is shown in the terminal, then appended to history as:
@@ -166,8 +167,8 @@ The reply is shown in the terminal, then appended to history as:
 
 ```text
 ┌─────────────┐     embed      ┌─────────────┐     top 3      ┌─────────────┐
-│ User prompt │ ─────────────► │   Chroma    │ ─────────────► │   Gemini    │
-└─────────────┘  embed query   │  (.chroma)  │   text chunks  │ 3.5 flash   │
+│ User prompt │ ─────────────► │   Chroma    │ ─────────────► │   Claude    │
+└─────────────┘  embed query   │  (.chroma)  │   text chunks  │ Haiku 4.5   │
                                └─────────────┘                └──────┬──────┘
                                                                      │
                                                                      ▼

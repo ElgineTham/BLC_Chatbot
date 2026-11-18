@@ -132,7 +132,9 @@ def test_live_chat_fixtures_use_build_chat_model_and_key_skip(rel):
     skip when GOOGLE_API_KEY is unset."""
     text = (TESTS_DIR / rel).read_text(encoding="utf-8")
     assert "build_chat_model" in text, rel
-    assert "GOOGLE_API_KEY" in text, rel
+    assert "ANTHROPIC_API_KEY" in text, rel  # spec 039: chat model runs on Claude
+    if rel != "tool_step/conftest.py":  # that fixture builds no embeddings
+        assert "GOOGLE_API_KEY" in text, rel
     assert "pytest.skip" in text, rel
 
 

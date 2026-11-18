@@ -582,7 +582,9 @@ def tool_env():
 
     load_dotenv()
     if not os.environ.get("GOOGLE_API_KEY", "").strip():
-        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini.")
+        pytest.skip("GOOGLE_API_KEY is not set; the embeddings run on Gemini.")
+    if not os.environ.get("ANTHROPIC_API_KEY", "").strip():
+        pytest.skip("ANTHROPIC_API_KEY is not set; the chat model runs on Claude (spec 039).")
     import chat
     from blc.tools.recipe_tools import RECIPES_FILE
 
