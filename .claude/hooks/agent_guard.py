@@ -51,16 +51,16 @@ POLICIES: dict[str, dict] = {
         "bash_deny": [r"\bpytest\b"],
     },
     "tester": {
-        "read_deny": ["scripts/", "src/", "README.md", ".git/"],
+        "read_deny": ["scripts/", "src/", "frontend/", "README.md", ".git/"],
         "write_deny": [
-            "scripts/", "src/", "docs/", "evals/", "data/", ".claude/", ".git/",
+            "scripts/", "src/", "frontend/", "docs/", "evals/", "data/", ".claude/", ".git/",
             "CLAUDE.md", "README.md", "pyproject.toml", "poetry.lock",
             "poetry.toml", ".gitignore",
         ],
         "bash_deny": ["*"],
     },
     "test-evaluator": {
-        "read_deny": ["scripts/", "src/", "README.md", ".git/"],
+        "read_deny": ["scripts/", "src/", "frontend/", "README.md", ".git/"],
         "write_deny": ["*"],
         "bash_deny": ["*"],
     },

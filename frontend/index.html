@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+  <meta name="theme-color" content="#8fb996">
+  <title>Bay Laurel Catering Assistant</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/assets/icon-192.png">
+  <link rel="icon" type="image/png" href="/assets/icon-192.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <defs>
+      <symbol id="laurel" viewBox="0 0 64 64">
+        <g class="laurel-body">
+          <path class="leaf" d="M32 4 C50 12 56 34 46 50 C42 57 36 60 32 60 C28 60 22 57 18 50 C8 34 14 12 32 4 Z"/>
+          <path class="vein" d="M32 14 L32 58" />
+          <g class="eyes">
+            <ellipse class="eye" cx="24" cy="32" rx="2.6" ry="3.4"/>
+            <ellipse class="eye" cx="40" cy="32" rx="2.6" ry="3.4"/>
+          </g>
+          <circle class="cheek" cx="19" cy="40" r="3.6"/>
+          <circle class="cheek" cx="45" cy="40" r="3.6"/>
+          <path class="mouth" d="M27 42 Q32 47 37 42"/>
+          <ellipse class="mouth-open" cx="32" cy="44" rx="3.4" ry="3"/>
+          <path class="worry" d="M20 27 L27 29 M44 27 L37 29"/>
+        </g>
+        <g class="sparkle"><path d="M54 8 l1.6 4 4 1.6 -4 1.6 -1.6 4 -1.6 -4 -4 -1.6 4 -1.6z"/></g>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="app">
+    <header class="top">
+      <img class="logo" src="/assets/blc_logo.png" alt="Bay Laurel Catering">
+      <button id="new-chat" class="ghost" type="button" aria-label="New chat">New chat</button>
+    </header>
+
+    <main id="messages" class="messages" role="log" aria-live="polite" aria-label="Conversation">
+      <section id="empty" class="empty">
+        <svg class="laurel big wave" data-state="idle" aria-hidden="true" focusable="false"><use href="#laurel"/></svg>
+        <h1>Hi, I'm Laurel!</h1>
+        <p>Ask me where things are kept, or how much to bring for an event.</p>
+        <div class="chips">
+          <button type="button" class="chip">Where is the coffee kept?</button>
+          <button type="button" class="chip">How many cups for 80 guests?</button>
+          <button type="button" class="chip">How many forks for 70 guests?</button>
+        </div>
+      </section>
+    </main>
+
+    <form id="form" class="composer" autocomplete="off">
+      <svg id="laurel-input" class="laurel small" data-state="idle" aria-hidden="true" focusable="false"><use href="#laurel"/></svg>
+      <label for="input" class="sr-only">Your question</label>
+      <textarea id="input" rows="1" placeholder="Ask Laurel..." maxlength="2000" enterkeyhint="send"></textarea>
+      <button id="send" type="submit" aria-label="Send question">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="M3 11.5 21 3l-8.5 18-2-7.5z" fill="currentColor"/></svg>
+      </button>
+    </form>
+  </div>
+  <script src="/app.js"></script>
+</body>
+</html>

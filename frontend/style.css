@@ -1,0 +1,94 @@
+:root {
+  --leaf: #8fb996;
+  --leaf-deep: #4f7d5c;
+  --leaf-soft: #e4efe5;
+  --paper: #faf7f0;
+  --ink: #2f3532;
+  --muted: #6b746e;
+  --blush: #f2b8b0;
+  --serif: Georgia, "Times New Roman", serif;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--paper); color: var(--ink); font-family: var(--sans); overflow-x: hidden; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.app { display: flex; flex-direction: column; height: 100dvh; max-width: 720px; margin: 0 auto; }
+
+.top { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; padding-top: max(10px, env(safe-area-inset-top)); border-bottom: 1px solid var(--leaf-soft); }
+.logo { height: 44px; max-width: 60%; object-fit: contain; }
+.ghost { min-height: 44px; min-width: 44px; padding: 0 16px; border: 1px solid var(--leaf); background: transparent; color: var(--leaf-deep); border-radius: 22px; font: inherit; cursor: pointer; }
+.ghost:hover { background: var(--leaf-soft); }
+
+.messages { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.empty { text-align: center; margin: auto; padding: 16px 0; }
+.empty[hidden] { display: none; }
+.empty h1 { font-family: var(--serif); font-weight: normal; color: var(--leaf-deep); margin: 8px 0 4px; font-size: 1.7rem; }
+.empty p { color: var(--muted); margin: 0 auto 18px; max-width: 28ch; line-height: 1.45; }
+.chips { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.chip { min-height: 44px; padding: 10px 18px; border: 1px solid var(--leaf); background: #fff; color: var(--ink); border-radius: 22px; font: inherit; cursor: pointer; max-width: 100%; }
+.chip:hover { background: var(--leaf-soft); }
+
+.row { display: flex; align-items: flex-end; gap: 8px; animation: slide-in .35s ease both; }
+.row.user { justify-content: flex-end; }
+.bubble { max-width: 80%; padding: 10px 14px; border-radius: 18px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.row.user .bubble { background: var(--leaf); color: #fff; border-bottom-right-radius: 6px; }
+.row.bot .bubble { background: #fff; border: 1px solid var(--leaf-soft); border-bottom-left-radius: 6px; }
+.row.error .bubble { background: #fbefec; border-color: var(--blush); }
+.dots { display: none; gap: 4px; padding: 4px 0; }
+.row.thinking .dots { display: inline-flex; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--leaf); animation: dot 1s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .15s; }
+.dots i:nth-child(3) { animation-delay: .3s; }
+
+.composer { display: flex; align-items: flex-end; gap: 8px; padding: 10px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); background: var(--paper); border-top: 1px solid var(--leaf-soft); }
+.composer textarea { flex: 1; min-height: 44px; max-height: 140px; resize: none; padding: 11px 14px; border: 1px solid var(--leaf); border-radius: 22px; font: inherit; font-size: 16px; background: #fff; color: var(--ink); }
+.composer textarea:focus { outline: 2px solid var(--leaf-soft); border-color: var(--leaf-deep); }
+.composer button { min-width: 44px; min-height: 44px; border: 0; border-radius: 50%; background: var(--leaf-deep); color: #fff; cursor: pointer; display: grid; place-items: center; }
+.composer button:disabled, .composer textarea:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Laurel */
+.laurel { flex: none; overflow: visible; }
+.laurel.small { width: 44px; height: 44px; }
+.laurel.big { width: 96px; height: 96px; }
+.row .laurel { width: 36px; height: 36px; }
+.leaf { fill: var(--leaf); stroke: var(--leaf-deep); stroke-width: 1.5; }
+.vein { stroke: var(--leaf-deep); stroke-width: 1; opacity: .35; fill: none; }
+.eye { fill: var(--ink); transform-box: fill-box; transform-origin: center; }
+.cheek { fill: var(--blush); opacity: .8; }
+.mouth { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
+.mouth-open { fill: var(--ink); opacity: 0; transform-box: fill-box; transform-origin: center; }
+.worry { stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; opacity: 0; }
+.sparkle { fill: #e9c46a; opacity: 0; transform-box: fill-box; transform-origin: center; }
+.laurel-body { transform-box: view-box; transform-origin: 50% 90%; }
+
+[data-state="idle"] .laurel-body { animation: bob 3.2s ease-in-out infinite; }
+[data-state="idle"] .eye { animation: blink 4.5s infinite; }
+[data-state="thinking"] .laurel-body { animation: wiggle 1s ease-in-out infinite; }
+[data-state="talking"] .mouth { opacity: 0; }
+[data-state="talking"] .mouth-open { opacity: 1; animation: talk .3s ease-in-out infinite; }
+[data-state="happy"] .laurel-body { animation: hop .6s ease both; }
+[data-state="happy"] .sparkle { animation: sparkle .9s ease both; }
+[data-state="oops"] .laurel-body { transform: rotate(-6deg) translateY(3px) scaleY(.94); }
+[data-state="oops"] .worry { opacity: 1; }
+[data-state="oops"] .mouth { d: path("M27 46 Q32 41 37 46"); }
+.wave { animation: wave 1.6s ease-in-out 2; transform-origin: 50% 90%; }
+
+@keyframes slide-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes bob { 50% { transform: translateY(-3px); } }
+@keyframes blink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes wiggle { 0%, 100% { transform: rotate(-7deg); } 50% { transform: rotate(7deg); } }
+@keyframes talk { 50% { transform: scaleY(.3); } }
+@keyframes hop { 40% { transform: translateY(-8px) scale(1.06); } 100% { transform: none; } }
+@keyframes sparkle { 0% { opacity: 0; transform: scale(.3); } 40% { opacity: 1; transform: scale(1.2); } 100% { opacity: 0; transform: scale(1); } }
+@keyframes dot { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes wave { 0%, 100% { transform: rotate(0); } 25% { transform: rotate(-8deg); } 75% { transform: rotate(8deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .row { animation: none; }
+  .wave, .dots i,
+  [data-state="idle"] .laurel-body, [data-state="idle"] .eye,
+  [data-state="thinking"] .laurel-body, [data-state="happy"] .laurel-body { animation: none; }
+  [data-state="talking"] .mouth-open { animation: none; }
+  [data-state="happy"] .sparkle { animation: none; opacity: 1; }
+}
