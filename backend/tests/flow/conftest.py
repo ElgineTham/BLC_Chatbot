@@ -379,17 +379,18 @@ def flow_env():
     """The real store and the real chat model, built once per run (NFR-3)."""
     import chat
 
-    names = _installed_models()
-    if names is None:
-        pytest.skip("Ollama is not running; start it to run the flow eval.")
-    if chat.CHAT_MODEL not in names and f"{chat.CHAT_MODEL}:latest" not in names:
-        pytest.skip(f"Model {chat.CHAT_MODEL} is not installed in Ollama.")
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini (spec 037).")
     if not _chroma_exists(chat):
         pytest.skip("The Chroma store does not exist; run scripts/ingest.py first.")
-    from langchain_ollama import ChatOllama
 
     store = chat.build_store()
-    llm = ChatOllama(model=chat.CHAT_MODEL, temperature=chat.CHAT_TEMPERATURE)
+    llm = chat.build_chat_model(temperature=chat.CHAT_TEMPERATURE)
     return SimpleNamespace(store=store, llm=llm, traces={})
 
 

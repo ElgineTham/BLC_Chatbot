@@ -103,8 +103,8 @@ def test_run_turn_standalone_docs_question_makes_no_router_call(monkeypatch, bev
     assert trace2.reply is None and trace2.route.kind == "DOCS"
 
 
-# ---------------------------------------------------------------- EC-28 keep-alive constant
+# ---------------------------------------------------------------- EC-28 keep-alive constant (spec 037: removed)
 
-def test_chat_keep_alive_constant():
-    """Covers: AC-4 (right), EC-28. CHAT_KEEP_ALIVE is the string '30m'."""
-    assert chat.CHAT_KEEP_ALIVE == "30m"
+def test_chat_keep_alive_constant_removed():
+    """Covers: AC-4 (spec 037 AC-12/AC-20, wrong), EC-28. The Ollama keep-alive constant no longer exists on chat."""
+    assert not hasattr(chat, "CHAT_" + "KEEP_ALIVE")

@@ -1,7 +1,7 @@
 """Spec 001 (voice-io), part 2: scripts/voice_chat.py.
 
 Unit tests only: recorder, transcriber and speaker are simple fakes; Ollama and
-Chroma are faked (chat.build_store / voice_chat.ChatOllama / chat.answer_turn are
+Chroma are faked (chat.build_store / chat.build_chat_model / chat.answer_turn are
 monkeypatched). Audio is built with numpy. No mic, models or network.
 
 Revision 3: the revision-2 source-label tests from tests/test_voice_io_source_labels.py
@@ -127,6 +127,10 @@ class FakeSpeaker:
 class FakeStore:
     def similarity_search(self, query, k=4, *a, **kw):
         raise AssertionError("store should not be queried in these tests")
+
+    def get(self, *a, **kw):
+        """An empty store: passes check_store_model (spec 037 AC-4), so main() goes on to the turn loop."""
+        return {"ids": [], "metadatas": [], "documents": []}
 
 
 class FakeLLM:
@@ -1585,7 +1589,7 @@ def test_voice_turn_no_docs_speaks_unknown_reply(monkeypatch, capsys):
 
 @pytest.fixture
 def main_env(monkeypatch, tmp_path):
-    """Existing CHROMA_DIR, fake build_store and ChatOllama, safe default component
+    """Existing CHROMA_DIR, fake build_store and chat.build_chat_model, safe default component
     classes that record construction."""
     env = SimpleNamespace(store=FakeStore(), llms=[], build_calls=0, constructed=[])
 
@@ -1597,16 +1601,17 @@ def main_env(monkeypatch, tmp_path):
 
     monkeypatch.setattr(chat, "build_store", fake_build_store)
 
-    class FakeChatOllama:
-        def __init__(self, *args, **kwargs):
-            self.args = args
-            self.kwargs = kwargs
+    class FakeChatModel:
+        def __init__(self, temperature=0.0):
+            self.temperature = temperature
             env.llms.append(self)
 
         def invoke(self, *a, **k):
             raise AssertionError("llm should not be invoked")
 
-    monkeypatch.setattr(voice_chat, "ChatOllama", FakeChatOllama)
+    # Spec 037: voice_chat builds its model only through chat.build_chat_model(temperature=0.1).
+    monkeypatch.setattr(chat, "build_chat_model", lambda temperature=0.0: FakeChatModel(temperature))
+    monkeypatch.setattr(chat, "build_embeddings", lambda: object())
 
     def make_factory(name, instance_attr):
         def factory(*a, **k):
@@ -1727,7 +1732,7 @@ def test_main_runs_turns_and_carries_history(monkeypatch, capsys, main_env):
     assert main_env.build_calls == 1
     assert len(main_env.llms) == 1
     llm = main_env.llms[0]
-    assert llm.kwargs == {"model": chat.CHAT_MODEL, "temperature": 0.1}
+    assert llm.temperature == 0.1
     assert all(c.store is main_env.store and c.llm is llm for c in calls)
     # no default components were constructed
     assert main_env.constructed == []

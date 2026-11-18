@@ -22,7 +22,7 @@ from typing import Any, Iterable, Protocol
 
 import numpy as np
 from langchain_chroma import Chroma
-from langchain_ollama import ChatOllama
+from langchain_core.language_models import BaseChatModel
 
 import chat
 
@@ -36,6 +36,7 @@ MODELS_DIR: Path = chat.ROOT / ".models"
 SPOKEN_EXTENSIONS_TO_DROP: tuple[str, ...] = (".md", ".pdf", ".txt")
 DIDNT_CATCH: str = "Didn't catch that. Please try again."
 GOODBYE: str = "Bye."
+VOICE_TEMPERATURE: float = 0.1
 
 BANNER_LINES: tuple[str, ...] = (
     "Bay Laurel Catering voice chatbot",
@@ -271,7 +272,7 @@ def _skipped(history: list[dict[str, str]]) -> VoiceTurnResult:
 
 def voice_turn(
     store: Chroma,
-    llm: ChatOllama,
+    llm: BaseChatModel,
     history: list[dict[str, str]],
     recorder: Recorder,
     transcriber: Transcriber,
@@ -322,12 +323,10 @@ def main(
     transcriber: Transcriber | None = None,
     speaker: Speaker | None = None,
 ) -> int:
-    if not chat.CHROMA_DIR.exists():
-        print(
-            f"Chroma store not found at {chat.CHROMA_DIR}. Run scripts/ingest.py first.",
-            file=sys.stderr,
-        )
+    started = chat.start_stack(chat.build_store, temperature=VOICE_TEMPERATURE)
+    if started is None:
         return 1
+    llm, store = started
 
     try:
         if recorder is None:
@@ -340,8 +339,6 @@ def main(
         print(str(exc), file=sys.stderr)
         return 1
 
-    store = chat.build_store()
-    llm = ChatOllama(model=chat.CHAT_MODEL, temperature=0.1)
     history: list[dict[str, str]] = []
 
     for line in BANNER_LINES:

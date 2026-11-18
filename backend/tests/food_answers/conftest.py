@@ -40,12 +40,17 @@ def ollama_models():
 
 @pytest.fixture(scope="session")
 def models_ready(ollama_models):
-    from blc.judge import JUDGE_MODEL
-    from chat import CHAT_MODEL
+    import os
 
-    for wanted in (CHAT_MODEL, JUDGE_MODEL):
-        if not fah.has_model(ollama_models, wanted):
-            pytest.skip(f"Ollama model {wanted!r} is not available; run: ollama pull {wanted}")
+    from blc.judge import JUDGE_MODEL
+    from dotenv import load_dotenv
+
+    # Spec 037: only the judge runs on Ollama; the chat model and embeddings need GOOGLE_API_KEY.
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini.")
+    if not fah.has_model(ollama_models, JUDGE_MODEL):
+        pytest.skip(f"Ollama model {JUDGE_MODEL!r} is not available; run: ollama pull {JUDGE_MODEL}")
     return True
 
 
@@ -72,10 +77,9 @@ def store(models_ready):
 
 @pytest.fixture(scope="session")
 def chat_llm(models_ready):
-    from chat import CHAT_MODEL, CHAT_TEMPERATURE
-    from langchain_ollama import ChatOllama
+    from chat import CHAT_TEMPERATURE, build_chat_model
 
-    return ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE)
+    return build_chat_model(temperature=CHAT_TEMPERATURE)
 
 
 @pytest.fixture(scope="session")

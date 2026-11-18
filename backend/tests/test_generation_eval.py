@@ -6,8 +6,10 @@ import json
 import sys
 from pathlib import Path
 
+import os
+
 import pytest
-from langchain_ollama import ChatOllama
+from dotenv import load_dotenv
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = ROOT / "backend" / "scripts"
@@ -16,8 +18,8 @@ GOLDEN_PATH = ROOT / "evals" / "retrieval" / "golden.jsonl"
 sys.path.insert(0, str(SCRIPTS))
 
 from chat import (  # noqa: E402
-    CHAT_MODEL,
     CHROMA_DIR,
+    build_chat_model,
     build_store,
     run_turn,
 )
@@ -70,14 +72,23 @@ def has_abstain_signal(answer: str) -> bool:
     return any(marker in lowered for marker in ABSTAIN_MARKERS)
 
 
-def generate_answer(store, llm: ChatOllama, question: str) -> str:
+def generate_answer(store, llm, question: str) -> str:
     """Single-turn generation through the real flow (retrieve, route, answer) with empty history.
     run_turn gives the unknown-retrieval reply itself when nothing is retrieved."""
     return run_turn(store, llm, [], question).reply
 
 
 @pytest.fixture(scope="module")
-def store():
+def gemini_key():
+    """Spec 037: the chat model and embeddings run on Gemini; skip when GOOGLE_API_KEY is unset."""
+    load_dotenv(ROOT / ".env")
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set.")
+    return True
+
+
+@pytest.fixture(scope="module")
+def store(gemini_key):
     if not CHROMA_DIR.exists():
         pytest.skip(
             f"Chroma store not found at {CHROMA_DIR}. Run scripts/ingest.py first."
@@ -86,8 +97,8 @@ def store():
 
 
 @pytest.fixture(scope="module")
-def llm():
-    return ChatOllama(model=CHAT_MODEL, temperature=0)
+def llm(gemini_key):
+    return build_chat_model(temperature=0)
 
 
 @pytest.mark.parametrize(
@@ -95,7 +106,7 @@ def llm():
     GOLDEN_CASES,
     ids=[c["id"] for c in GOLDEN_CASES],
 )
-def test_generation_against_golden(store, llm: ChatOllama, case: dict) -> None:
+def test_generation_against_golden(store, llm, case: dict) -> None:
     """Answer must hit required phrases, avoid forbidden ones, and abstain when labeled."""
     answer = generate_answer(store, llm, case["question"])
     case_id = case["id"]

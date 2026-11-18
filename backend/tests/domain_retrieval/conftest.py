@@ -30,8 +30,15 @@ def real_lexicon():
 
 @pytest.fixture(scope="session")
 def ollama_available() -> bool:
-    if not dh.ollama_running():
-        pytest.skip("Ollama is not running; start it to run the domain retrieval integration/eval tests.")
+    """Name kept for the dependent fixtures. Spec 037: embeddings run on Gemini, so this skips when
+    GOOGLE_API_KEY is unset (Ollama is no longer needed here)."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; set it to run the domain retrieval integration/eval tests.")
     return True
 
 
@@ -39,13 +46,13 @@ def ollama_available() -> bool:
 def tmp_store(tmp_path, ollama_available):
     """Empty Chroma store in a pytest temp dir with the real embedding model."""
     from langchain_chroma import Chroma
-    from langchain_ollama import OllamaEmbeddings
 
-    from ingest import COLLECTION_NAME, EMBED_MODEL
+    from blc.llm import build_embeddings
+    from ingest import COLLECTION_NAME
 
     return Chroma(
         collection_name=COLLECTION_NAME,
-        embedding_function=OllamaEmbeddings(model=EMBED_MODEL),
+        embedding_function=build_embeddings(),
         persist_directory=str(tmp_path / "chroma"),
     )
 

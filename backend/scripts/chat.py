@@ -24,10 +24,18 @@ from langchain_core.messages import (  # noqa: E402
     ToolMessage,
 )
 from langchain_core.tools import BaseTool  # noqa: E402
-from langchain_ollama import ChatOllama, OllamaEmbeddings  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 
 from blc.flow import run_planned_turn  # noqa: E402
 from blc.history import HISTORY_TOKEN_LIMIT, summarize_if_long  # noqa: E402,F401
+from blc.ingest import StoreModelMismatchError, check_store_model  # noqa: E402,F401
+from blc.llm import (  # noqa: E402
+    CHAT_MODEL,
+    EMBED_MODEL,
+    MissingApiKeyError,
+    build_chat_model,
+    build_embeddings,
+)
 from blc.pull_sheet import RuleFileError, load_catalog  # noqa: E402
 from blc.retrieval import DomainStore  # noqa: E402
 from blc.router import RoutedPart, route_fast  # noqa: E402
@@ -52,9 +60,6 @@ from blc.tools.recipe_tools import RECIPE_TOOL, RECIPE_TOOL_NAME  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 CHROMA_DIR = ROOT / ".chroma"
 COLLECTION_NAME = "blc_knowledge"
-EMBED_MODEL = "nomic-embed-text"
-CHAT_MODEL = "qwen2.5:7b"
-CHAT_KEEP_ALIVE = "30m"
 TOP_K = 3
 CHARS_PER_TOKEN = 4
 EXIT_COMMANDS: frozenset[str] = frozenset({
@@ -195,10 +200,9 @@ def format_context(docs: list[Document]) -> str:
 
 
 def build_store() -> Chroma:
-    embeddings = OllamaEmbeddings(model=EMBED_MODEL)
     return Chroma(
         collection_name=COLLECTION_NAME,
-        embedding_function=embeddings,
+        embedding_function=build_embeddings(),
         persist_directory=str(CHROMA_DIR),
     )
 
@@ -211,7 +215,7 @@ def retrieve(store: Chroma, question: str) -> list[Document]:
     return store.similarity_search(question, k=TOP_K)
 
 
-def summarize_history(llm: ChatOllama, history: list[dict[str, str]]) -> str:
+def summarize_history(llm: BaseChatModel, history: list[dict[str, str]]) -> str:
     conversation = format_history(history)
     message = SUMMARIZE_PROMPT.format(conversation=conversation)
     response = llm.invoke(
@@ -562,7 +566,7 @@ def run_turn(
 
 def answer_turn(
     store: Chroma,
-    llm: ChatOllama,
+    llm: BaseChatModel,
     history: list[dict[str, str]],
     question: str,
 ) -> TurnResult:
@@ -584,18 +588,36 @@ def answer_turn(
     return TurnResult(reply=reply, history=new_history, docs=docs)
 
 
-def main() -> int:
-    if not CHROMA_DIR.exists():
-        print(
-            f"Chroma store not found at {CHROMA_DIR}. Run scripts/ingest.py first.",
-            file=sys.stderr,
-        )
-        return 1
+def start_stack(
+    make_store=None, temperature: float | None = None
+) -> tuple[BaseChatModel, object] | None:
+    """Load .env, build the chat model and the store, and check the store was built by
+    EMBED_MODEL. On any startup problem print the message to stderr and return None."""
+    load_dotenv()
+    make_store = build_domain_store if make_store is None else make_store
+    temperature = CHAT_TEMPERATURE if temperature is None else temperature
+    try:
+        llm = build_chat_model(temperature=temperature)
+        build_embeddings()  # fail on a missing key before touching the store
+        if not CHROMA_DIR.exists():
+            print(
+                f"Chroma store not found at {CHROMA_DIR}. Run scripts/ingest.py first.",
+                file=sys.stderr,
+            )
+            return None
+        store = make_store()
+        check_store_model(getattr(store, "_store", store))
+    except (MissingApiKeyError, StoreModelMismatchError) as exc:
+        print(str(exc), file=sys.stderr)
+        return None
+    return llm, store
 
-    store = build_domain_store()
-    llm = ChatOllama(
-        model=CHAT_MODEL, temperature=CHAT_TEMPERATURE, keep_alive=CHAT_KEEP_ALIVE
-    )
+
+def main() -> int:
+    started = start_stack()
+    if started is None:
+        return 1
+    llm, store = started
     try:
         drink_catalog = load_catalog()
     except (RuleFileError, OSError):

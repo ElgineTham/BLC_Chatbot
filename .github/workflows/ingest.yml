@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "data/**/*.md"
+      - "backend/src/blc/llm/**"
   workflow_dispatch:
 
 permissions:
@@ -24,22 +25,14 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry and dependencies (no voice group)
+      - name: Install Poetry and dependencies (no voice or eval group)
         run: |
           pip install poetry
-          poetry install --without voice
-
-      - name: Install Ollama and pull the embedding model
-        run: |
-          curl -fsSL https://ollama.com/install.sh | sh
-          (ollama serve > /tmp/ollama.log 2>&1 &)
-          for i in $(seq 1 30); do
-            curl -s http://127.0.0.1:11434/ > /dev/null && break
-            sleep 2
-          done
-          ollama pull nomic-embed-text
+          poetry install --without voice,eval
 
       - name: Ingest
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
         run: poetry run python backend/scripts/ingest.py
 
       - name: Commit updated .chroma/

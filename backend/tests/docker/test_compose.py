@@ -3,7 +3,7 @@ import os
 
 import pytest
 
-from docker_helpers import DEFAULT_OLLAMA_HOST, REPO_ROOT, compose_config
+from docker_helpers import REPO_ROOT, compose_config
 
 pytestmark = pytest.mark.integration
 
@@ -55,15 +55,5 @@ def test_only_the_two_mounts(docker_available):
     assert targets == ["/app/.chroma", "/app/data"]
 
 
-def test_ollama_host_default(docker_available):
-    """Covers: AC-11 (right), COMPOSE-3. Without shell OLLAMA_HOST the default host URL is used."""
-    cfg = compose_config()
-    assert cfg["services"]["web"]["environment"]["OLLAMA_HOST"] == DEFAULT_OLLAMA_HOST
-
-
-def test_ollama_host_override(docker_available):
-    """Covers: AC-11 (right), COMPOSE-4. Shell OLLAMA_HOST wins over the default."""
-    cfg = compose_config(extra_env={"OLLAMA_HOST": "http://example:1234"})
-    env = cfg["services"]["web"]["environment"]
-    assert env["OLLAMA_HOST"] == "http://example:1234"
-    assert env["OLLAMA_HOST"] != DEFAULT_OLLAMA_HOST
+# Spec 037 AC-20: the OLLAMA_HOST default/override tests (COMPOSE-3, COMPOSE-4) were removed; compose now
+# passes GOOGLE_API_KEY and no OLLAMA_HOST (covered in tests/gemini_migration/test_repo.py, REPO-5).

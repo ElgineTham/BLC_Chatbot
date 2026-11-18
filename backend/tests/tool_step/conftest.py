@@ -128,14 +128,15 @@ def _installed_models():
 
 @pytest.fixture(scope="session")
 def chat_model_name():
-    """EC-1: skip when Ollama is not running or CHAT_MODEL is not installed."""
-    from chat import CHAT_MODEL
+    """EC-1 (spec 037: Gemini): skip when GOOGLE_API_KEY is unset."""
+    import os
 
-    names = _installed_models()
-    if names is None:
-        pytest.skip("Ollama is not running; start it to run the tool-step eval.")
-    if CHAT_MODEL not in names and f"{CHAT_MODEL}:latest" not in names:
-        pytest.skip(f"Model {CHAT_MODEL} is not installed in Ollama.")
+    from chat import CHAT_MODEL
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; the chat model runs on Gemini.")
     return CHAT_MODEL
 
 
@@ -143,10 +144,9 @@ def chat_model_name():
 def bound_model(chat_model_name):
     """The real model with only the real beverage tool bound (spec section 3)."""
     from blc.tools.bev_tools import BEV_TOOL
-    from chat import CHAT_TEMPERATURE
-    from langchain_ollama import ChatOllama
+    from chat import CHAT_TEMPERATURE, build_chat_model
 
-    llm = ChatOllama(model=chat_model_name, temperature=CHAT_TEMPERATURE)
+    llm = build_chat_model(temperature=CHAT_TEMPERATURE)
     return llm.bind_tools([BEV_TOOL])
 
 

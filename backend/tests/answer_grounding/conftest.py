@@ -285,6 +285,13 @@ def grounding_env():
     empty or missing, or data/recipes/recipes.json is missing. Reads only; nothing is written to data/ or .chroma/."""
     if not _ollama_running():
         pytest.skip("Ollama is not running; start it to run the grounding eval.")
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini (spec 037).")
     import chat
     from blc.judge import JUDGE_MODEL
     from blc.tools.recipe_tools import RECIPES_FILE
@@ -297,7 +304,7 @@ def grounding_env():
     store = chat.build_store()
     if not (store.get(include=["metadatas"]).get("ids") or []):
         pytest.skip("The Chroma store is empty. Run scripts/ingest.py.")
-    llm = ChatOllama(model=chat.CHAT_MODEL, temperature=0, keep_alive=chat.CHAT_KEEP_ALIVE)
+    llm = chat.build_chat_model(temperature=0)
     llm.invoke("Reply with one word: ready")  # warm-up: loads the chat model
     ChatOllama(model=JUDGE_MODEL, temperature=0).invoke("Reply with one word: ready")  # warm-up: loads the judge model
     return SimpleNamespace(store=store, llm=llm, chat=chat, results=None)

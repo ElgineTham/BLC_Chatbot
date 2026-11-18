@@ -22,14 +22,15 @@ KEPT_ROUTER_NAMES = [
 ]
 KEPT_CHAT_NAMES = [
     "run_turn", "run_stages", "answer_turn", "retrieve", "run_tool_step", "run_part",
-    "build_final_messages", "summarize_if_long", "summarize_history", "CHAT_MODEL", "CHAT_KEEP_ALIVE",
+    "build_final_messages", "summarize_if_long", "summarize_history", "CHAT_MODEL",
     "CHAT_TEMPERATURE", "TOOL_PROMPT", "ANSWER_PROMPT", "CHAT_TOOLS", "main",
 ]
 REMOVED_ROUTER_NAMES = [
     "route_question", "route_faithfully", "check_fidelity", "FIDELITY_PREFIX", "parse_reply",
     "ROUTER_PROMPT", "ROUTER_SCHEMA", "build_router_messages", "MENU_DRINKS", "menu_drinks_in",
 ]
-REMOVED_CHAT_NAMES = ["answer_from_context", "answer_with_tools", "ToolAnswer", "maybe_summarize", "SYSTEM_PROMPT"]
+REMOVED_CHAT_NAMES = ["answer_from_context", "answer_with_tools", "ToolAnswer", "maybe_summarize", "SYSTEM_PROMPT",
+                      "CHAT_KEEP_ALIVE"]  # spec 037: Ollama keep-alive removed
 REMOVED_ROUTER_MODULES = ["route", "faithful", "fidelity", "parsing", "prompt", "drinks"]
 
 

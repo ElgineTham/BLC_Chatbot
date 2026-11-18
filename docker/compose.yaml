@@ -20,6 +20,4 @@ services:
         bind:
           create_host_path: false
     environment:
-      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}

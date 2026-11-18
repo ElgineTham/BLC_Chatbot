@@ -14,13 +14,12 @@ for _p in (str(HERE), str(ROOT / "scripts"), str(ROOT / "src")):
         sys.path.insert(0, _p)
 
 from docker_helpers import (  # noqa: E402
-    ADD_HOST,
     DOCKERFILE,
+    EMBED_MODEL_NAME,
     REPO_ROOT,
     TEST_TAG,
     docker_ready,
     free_port,
-    ollama_ready,
     run_cmd,
 )
 
@@ -32,9 +31,17 @@ def docker_available():
 
 
 @pytest.fixture(scope="session")
-def ollama_available():
-    if not ollama_ready():
-        pytest.skip("host Ollama is not answering on localhost:11434")
+def gemini_key():
+    """Spec 037: a real Gemini key for tests that reach the model; skips when GOOGLE_API_KEY is unset."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv(REPO_ROOT / ".env")
+    key = os.environ.get("GOOGLE_API_KEY", "").strip()
+    if not key:
+        pytest.skip("GOOGLE_API_KEY is not set")
+    return key
 
 
 @pytest.fixture
@@ -43,6 +50,32 @@ def repo_chroma():
         pytest.skip("repo .chroma/ is missing")
     if not (REPO_ROOT / "data").is_dir():
         pytest.skip("repo data/ is missing")
+
+
+@pytest.fixture
+def stamped_chroma(tmp_path):
+    """A temp store stamped with the Gemini embedding model (fake 768-dim vectors), so the web container
+    starts (spec 037 AC-11) without any model call. Returns (data_dir, chroma_dir)."""
+    from langchain_chroma import Chroma
+    from langchain_core.embeddings import DeterministicFakeEmbedding
+
+    import ingest
+
+    data = tmp_path / "data"
+    chroma = tmp_path / ".chroma"
+    data.mkdir()
+    store = Chroma(
+        collection_name=ingest.COLLECTION_NAME,
+        embedding_function=DeterministicFakeEmbedding(size=768),
+        persist_directory=str(chroma),
+    )
+    store.add_texts(
+        ["The coffee urn is kept in the back kitchen."],
+        metadatas=[{"source": "data/x.md", "category": "x", "domain": "x", "chunk_index": 0,
+                    "embed_model": EMBED_MODEL_NAME}],
+        ids=["seed-1"],
+    )
+    return data, chroma
 
 
 @pytest.fixture(scope="session")
@@ -62,7 +95,7 @@ def containers():
 
     def start(tag, port=None, mounts=(), env=None, command=()):
         name = f"blc-test-035-{uuid.uuid4().hex[:8]}"
-        args = ["docker", "run", "-d", "--name", name, *ADD_HOST]
+        args = ["docker", "run", "-d", "--name", name]
         if port is not None:
             args += ["-p", f"{port}:8000"]
         for src, dst in mounts:
@@ -82,15 +115,21 @@ def containers():
 
 
 @pytest.fixture
-def web_container(image, containers, repo_chroma):
-    """Factory: start the default command with repo data/.chroma mounted; returns (name, port)."""
+def web_container(image, containers, stamped_chroma):
+    """Factory: start the default command with a stamped temp store mounted; returns (name, port).
+    GOOGLE_API_KEY defaults to 'invalid' (the web app only needs it to be non-blank to start)."""
 
-    def start(env=None):
+    def start(env=None, real_store=False):
         port = free_port()
-        mounts = [
-            (str(REPO_ROOT / "data"), "/app/data"),
-            (str(REPO_ROOT / ".chroma"), "/app/.chroma"),
-        ]
-        return containers(image, port=port, mounts=mounts, env=env), port
+        if real_store:
+            mounts = [
+                (str(REPO_ROOT / "data"), "/app/data"),
+                (str(REPO_ROOT / ".chroma"), "/app/.chroma"),
+            ]
+        else:
+            data, chroma = stamped_chroma
+            mounts = [(str(data), "/app/data"), (str(chroma), "/app/.chroma")]
+        full_env = {"GOOGLE_API_KEY": "invalid", **(env or {})}
+        return containers(image, port=port, mounts=mounts, env=full_env), port
 
     return start

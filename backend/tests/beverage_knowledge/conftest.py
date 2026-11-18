@@ -202,7 +202,20 @@ def ollama_available():
 
 
 @pytest.fixture(scope="session")
-def store(ollama_available):
+def gemini_key():
+    """Spec 037: the chat model and embeddings run on Gemini; skip when GOOGLE_API_KEY is unset."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; the chat model and embeddings run on Gemini.")
+    return True
+
+
+@pytest.fixture(scope="session")
+def store(ollama_available, gemini_key):
     """The real store (read only); skips if the knowledge files are not ingested (EC-1)."""
     from chat import CHROMA_DIR, build_store
 
@@ -224,11 +237,10 @@ def store(ollama_available):
 
 
 @pytest.fixture(scope="session")
-def chat_llm(ollama_available):
-    from chat import CHAT_MODEL
-    from langchain_ollama import ChatOllama
+def chat_llm(gemini_key):
+    from chat import build_chat_model
 
-    return ChatOllama(model=CHAT_MODEL, temperature=0)
+    return build_chat_model(temperature=0)
 
 
 # --------------------------------------------------------------------------

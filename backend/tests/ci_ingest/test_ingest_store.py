@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import time
-import urllib.request
 
 import pytest
 from ci_helpers import chunks_for, count, dump, make_store
@@ -254,23 +253,20 @@ def test_persisted_store_reopened_is_unchanged(tmp_path, data_dir):
     assert plan.new == () and plan.updated == ()
 
 
-def _ollama_up() -> bool:
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2):
-            return True
-    except Exception:
-        return False
-
-
 @pytest.mark.integration
-def test_real_ollama_two_real_files_new_then_unchanged(tmp_path):
-    """Covers: AC-15 (right), INGEST-12. Real embeddings: first run new, second run unchanged."""
-    if not _ollama_up():
-        pytest.skip("Ollama is not running.")
+def test_real_embeddings_two_real_files_new_then_unchanged(tmp_path):
+    """Covers: AC-15 (right), INGEST-12 (spec 037 AC-20: Gemini embeddings via build_embeddings, skipped without
+    GOOGLE_API_KEY). Real embeddings: first run new, second run unchanged."""
+    import os
     import shutil
 
+    from dotenv import load_dotenv
     from langchain_chroma import Chroma
-    from langchain_ollama import OllamaEmbeddings
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set.")
+    from blc.llm import build_embeddings
 
     from ingest import DATA_DIR
 
@@ -284,7 +280,7 @@ def test_real_ollama_two_real_files_new_then_unchanged(tmp_path):
         shutil.copy(f, dest)
     store = Chroma(
         collection_name="spec036_integration",
-        embedding_function=OllamaEmbeddings(model="nomic-embed-text"),
+        embedding_function=build_embeddings(),
         persist_directory=str(tmp_path / "chroma"),
     )
     first = ingest(store, src_dir)

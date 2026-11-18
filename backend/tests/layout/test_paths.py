@@ -157,14 +157,13 @@ def test_missing_asset_is_not_found(page_client):
 def test_real_store_returns_data_sources(repo_root):
     """Covers: PATHS-5, AC-4 (right). The existing .chroma/ returns >=1 chunk for a coffee question and every
     source starts with data/ (repo-root relative)."""
-    import httpx
+    import os
 
-    try:
-        up = httpx.get("http://localhost:11434", timeout=2).status_code == 200
-    except Exception:
-        up = False
-    if not up:
-        pytest.skip("Ollama is not running")
+    from dotenv import load_dotenv
+
+    load_dotenv(repo_root / ".env")
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set (spec 037: embeddings run on Gemini)")
     if not (repo_root / ".chroma").exists():
         pytest.skip(".chroma/ is missing")
 

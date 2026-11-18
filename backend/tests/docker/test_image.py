@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from docker_helpers import (
-    DEFAULT_OLLAMA_HOST,
     ERROR_MESSAGE,
     http_get,
     post_chat,
@@ -46,7 +45,7 @@ def test_image_contents(image):
 
 def test_no_command_no_mounts_exits_1(image):
     """Covers: AC-3 (wrong), DOCKER-3. No store mounted: exit 1 and output mentions Chroma/ingest."""
-    result = run_cmd(["docker", "run", "--rm", image], timeout=120)
+    result = run_cmd(["docker", "run", "--rm", "-e", "GOOGLE_API_KEY=invalid", image], timeout=120)
     assert result.returncode == 1
     out = (result.stdout + result.stderr).lower()
     assert "chroma" in out or "ingest" in out
@@ -63,9 +62,10 @@ def test_health_and_page(web_container):
     assert "<html" in page.lower()
 
 
-def test_chat_streams_tokens_and_done(web_container, ollama_available):
-    """Covers: AC-5 (right), DOCKER-5. Tokens then done with non-empty reply."""
-    _, port = web_container(env={"OLLAMA_HOST": DEFAULT_OLLAMA_HOST})
+def test_chat_streams_tokens_and_done(web_container, gemini_key, repo_chroma):
+    """Covers: AC-5 (right), DOCKER-5 (spec 037 AC-20: real Gemini key, ingested repo store). Tokens then done
+    with non-empty reply."""
+    _, port = web_container(env={"GOOGLE_API_KEY": gemini_key}, real_store=True)
     assert wait_for_health(port, 60)[0] == 200
     status, lines = post_chat(port, "Where is the coffee kept?")
     assert status == 200
@@ -75,9 +75,10 @@ def test_chat_streams_tokens_and_done(web_container, ollama_available):
     assert done["reply"].strip()
 
 
-def test_chat_with_dead_ollama_returns_error_line(web_container):
-    """Covers: AC-6 (wrong), DOCKER-6. Unreachable Ollama: 200, error line, health still 200."""
-    _, port = web_container(env={"OLLAMA_HOST": "http://host.docker.internal:9"})
+def test_chat_with_invalid_key_returns_error_line(web_container):
+    """Covers: AC-6 (wrong), DOCKER-6 (spec 037 AC-19 equivalent). GOOGLE_API_KEY=invalid: 200, error line,
+    health still 200."""
+    _, port = web_container(env={"GOOGLE_API_KEY": "invalid"})
     assert wait_for_health(port, 60)[0] == 200
     status, lines = post_chat(port, "Where is the coffee kept?")
     assert status == 200
@@ -104,8 +105,9 @@ def test_docker_stop_is_clean(web_container):
     assert inspect.stdout.strip() != "137"
 
 
-def test_ingest_in_container(image, ollama_available):
-    """Covers: AC-8 (right), DOCKER-8. Ingest of one md file exits 0 and fills the empty .chroma folder."""
+def test_ingest_in_container(image, gemini_key):
+    """Covers: AC-8 (right), DOCKER-8 (spec 037: real Gemini key). Ingest of one md file exits 0 and fills the
+    empty .chroma folder."""
     with tempfile.TemporaryDirectory() as tmp:
         data = Path(tmp) / "data"
         chroma = Path(tmp) / "chroma"
@@ -118,8 +120,7 @@ def test_ingest_in_container(image, ollama_available):
         result = run_cmd(
             [
                 "docker", "run", "--rm",
-                "--add-host", "host.docker.internal:host-gateway",
-                "-e", f"OLLAMA_HOST={DEFAULT_OLLAMA_HOST}",
+                "-e", f"GOOGLE_API_KEY={gemini_key}",
                 "-v", f"{data}:/app/data",
                 "-v", f"{chroma}:/app/.chroma",
                 image, "python", "backend/scripts/ingest.py",
@@ -143,10 +144,19 @@ def test_python_imports(image):
     """Covers: AC-9 (right), DOCKER-9. Runtime packages import."""
     result = run_cmd(
         ["docker", "run", "--rm", image, "python", "-c",
-         "import fastapi, uvicorn, chromadb, langchain_ollama"],
+         "import fastapi, uvicorn, chromadb, langchain_google_genai"],
         timeout=120,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_eval_package_absent(image):
+    """Covers: AC-15 (wrong, spec 037). The eval group is not installed: langchain_ollama cannot be imported."""
+    result = run_cmd(
+        ["docker", "run", "--rm", image, "python", "-c", "import langchain_ollama"],
+        timeout=120,
+    )
+    assert result.returncode != 0
 
 
 def test_voice_package_absent(image):

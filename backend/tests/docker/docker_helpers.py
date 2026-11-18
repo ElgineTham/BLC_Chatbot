@@ -13,10 +13,8 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 DOCKERFILE = "docker/Dockerfile"
 COMPOSE_FILE = "docker/compose.yaml"
 TEST_TAG = "blc-chatbot-test-035:latest"
-DEFAULT_OLLAMA_HOST = "http://host.docker.internal:11434"
-HOST_OLLAMA_URL = "http://localhost:11434"
 ERROR_MESSAGE = "Sorry, something went wrong on my end. Please try again."
-ADD_HOST = ["--add-host", "host.docker.internal:host-gateway"]
+EMBED_MODEL_NAME = "gemini-embedding-2"  # spec 037: the store the web container opens must be stamped with it
 
 
 def run_cmd(args, timeout=300, env=None, cwd=REPO_ROOT):
@@ -32,14 +30,6 @@ def docker_ready() -> bool:
     try:
         return run_cmd(["docker", "info"], timeout=30).returncode == 0
     except (subprocess.TimeoutExpired, OSError):
-        return False
-
-
-def ollama_ready() -> bool:
-    try:
-        with urllib.request.urlopen(HOST_OLLAMA_URL, timeout=3) as r:
-            return r.status == 200
-    except Exception:
         return False
 
 
@@ -83,11 +73,12 @@ def wait_for_health(port, seconds=60):
     return None, ""
 
 
-def compose_config(extra_env=None, remove_env=("OLLAMA_HOST",)):
+def compose_config(extra_env=None, remove_env=("GOOGLE_API_KEY",)):
     """Return parsed `docker compose config --format json` output."""
     env = dict(os.environ)
     for k in remove_env:
         env.pop(k, None)
+    env["GOOGLE_API_KEY"] = "dummy-key"  # spec 037: compose passes the shell's key through
     env.update(extra_env or {})
     result = run_cmd(
         ["docker", "compose", "-f", COMPOSE_FILE, "config", "--format", "json"],

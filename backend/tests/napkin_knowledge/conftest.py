@@ -34,8 +34,15 @@ def no_napkin_lexicon(tmp_path):
 
 @pytest.fixture(scope="session")
 def ollama_available() -> bool:
-    if not nh.ollama_running():
-        pytest.skip("Ollama is not running; start it to run the napkin integration/eval tests.")
+    """Name kept for the dependent fixtures. Spec 037: embeddings run on Gemini, so this skips when
+    GOOGLE_API_KEY is unset (Ollama is no longer needed here)."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; set it to run the napkin integration/eval tests.")
     return True
 
 

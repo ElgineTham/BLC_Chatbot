@@ -255,18 +255,17 @@ def eval_cases():
 # Eval environment (NFR-3: skip, do not fail)
 # --------------------------------------------------------------------------
 
-def _ollama_running() -> bool:
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=2):
-            return True
-    except Exception:
-        return False
-
-
 @pytest.fixture(scope="session")
 def ollama_available():
-    if not _ollama_running():
-        pytest.skip("Ollama is not running; start it to run the planned-flow eval.")
+    """Name kept for the dependent fixtures. Spec 037: the chat model and embeddings run on Gemini, so this
+    skips when GOOGLE_API_KEY is unset (Ollama is no longer needed here)."""
+    import os
+
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; set it to run the planned-flow eval.")
     return True
 
 
@@ -288,9 +287,8 @@ def real_store(ollama_available):
 @pytest.fixture(scope="session")
 def real_llm(ollama_available):
     """The real chat model, warmed up with one call."""
-    from chat import CHAT_KEEP_ALIVE, CHAT_MODEL, CHAT_TEMPERATURE
-    from langchain_ollama import ChatOllama
+    from chat import CHAT_TEMPERATURE, build_chat_model
 
-    llm = ChatOllama(model=CHAT_MODEL, temperature=CHAT_TEMPERATURE, keep_alive=CHAT_KEEP_ALIVE)
+    llm = build_chat_model(temperature=CHAT_TEMPERATURE)
     llm.invoke("Reply with one word: ready")
     return llm

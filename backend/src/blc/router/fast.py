@@ -22,9 +22,7 @@ def _parts_of(history: list[dict[str, str]], question: str) -> tuple[str, ...]:
 def _ask(llm, texts: list[str]) -> tuple[str, ...] | None:
     lines = "\n".join(f"{i}. {text}" for i, text in enumerate(texts, start=1))
     messages = [SystemMessage(classifier_prompt()), HumanMessage(lines)]
-    response = llm.invoke(
-        messages, options={"num_predict": CLASSIFIER_MAX_TOKENS, "temperature": 0}
-    )
+    response = llm.invoke(messages)
     return read_labels(str(getattr(response, "content", "")), len(texts))
 
 

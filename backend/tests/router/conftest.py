@@ -12,7 +12,7 @@ Fixtures:
 - ai, tc               build scripted AIMessages and tool-call dicts
 - text_of              join the content of a message list into one string
 - make_tool            recording fake tool
-- fast_llm             (eval only) real ChatOllama with keep_alive; skips when Ollama is not running
+- fast_llm             (eval only) real Gemini chat model via build_chat_model; skips when GOOGLE_API_KEY is unset
 """
 
 from __future__ import annotations
@@ -281,11 +281,21 @@ def ollama_available():
 
 
 @pytest.fixture(scope="session")
-def fast_llm(ollama_available):
-    """Spec 013 AC-6 (eval only): the real chat model with keep_alive=CHAT_KEEP_ALIVE, warmed up by one call."""
-    from chat import CHAT_KEEP_ALIVE, CHAT_MODEL
-    from langchain_ollama import ChatOllama
+def fast_llm():
+    """Spec 013 AC-6 (eval only), migrated by spec 037 AC-20: the real Gemini chat model, warmed up by one call.
+    Skips when GOOGLE_API_KEY is unset."""
+    import os
 
-    llm = ChatOllama(model=CHAT_MODEL, temperature=0, keep_alive=CHAT_KEEP_ALIVE)
-    llm.invoke("Reply with one word: ready")  # warm-up: loads the model so timings are fair
+    try:
+        from dotenv import load_dotenv
+
+        load_dotenv(ROOT.parent / ".env")
+    except ImportError:
+        pass
+    if not os.environ.get("GOOGLE_API_KEY", "").strip():
+        pytest.skip("GOOGLE_API_KEY is not set; set it to run the router evals.")
+    from chat import build_chat_model
+
+    llm = build_chat_model()
+    llm.invoke("Reply with one word: ready")  # warm-up so timings are fair
     return llm

@@ -39,21 +39,13 @@ def main(argv: list[str] | None = None) -> int:
 
     import chat  # heavy imports (LangChain, Chroma) only when serving
 
-    if not chat.CHROMA_DIR.exists():
-        print(
-            f"Chroma store not found at {chat.CHROMA_DIR}. Run scripts/ingest.py first.",
-            file=sys.stderr,
-        )
+    started = chat.start_stack()
+    if started is None:
         return 1
+    llm, store = started
 
     import uvicorn
 
-    store = chat.build_domain_store()
-    llm = chat.ChatOllama(
-        model=chat.CHAT_MODEL,
-        temperature=chat.CHAT_TEMPERATURE,
-        keep_alive=chat.CHAT_KEEP_ALIVE,
-    )
     try:
         drink_catalog = chat.load_catalog()
     except (chat.RuleFileError, OSError):

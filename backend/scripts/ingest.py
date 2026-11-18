@@ -12,24 +12,27 @@ if _SRC not in sys.path:
 
 from langchain_chroma import Chroma  # noqa: E402
 from langchain_core.documents import Document  # noqa: E402
-from langchain_ollama import OllamaEmbeddings  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
 
 from blc.ingest import (  # noqa: E402
+    EMBED_MODEL_KEY,
     HASH_KEY,
     PER_BULLET_SOURCES,
     IngestPlan,
+    StoreModelMismatchError,  # noqa: F401
+    check_store_model,  # noqa: F401
     chunk_per_bullet,
     content_hash,
     plan_changes,
 )
+from blc.llm import EMBED_MODEL, MissingApiKeyError, build_embeddings  # noqa: E402
 from blc.retrieval import domain_for  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = ROOT / "data"
 CHROMA_DIR = ROOT / ".chroma"
 COLLECTION_NAME = "blc_knowledge"
-EMBED_MODEL = "nomic-embed-text"
 MAX_TOKENS = 500
 # Rough English estimate used for the size threshold and hard splits.
 CHARS_PER_TOKEN = 4
@@ -101,8 +104,9 @@ def category_for(path: Path) -> str:
         return "unknown"
 
 
-def stored_hashes(store: Chroma) -> dict[str, str | None]:
-    """Map source path -> stored content hash (None if any chunk lacks one)."""
+def stored_hashes(store: Chroma, embed_model: str = EMBED_MODEL) -> dict[str, str | None]:
+    """Map source path -> stored content hash (None if any chunk lacks one, or lacks
+    or differs in its embedding-model stamp, so the source is re-embedded)."""
     result = store.get(include=["metadatas"])
     hashes: dict[str, str | None] = {}
     for meta in result.get("metadatas") or []:
@@ -110,6 +114,8 @@ def stored_hashes(store: Chroma) -> dict[str, str | None]:
         if not source:
             continue
         digest = meta.get(HASH_KEY)
+        if meta.get(EMBED_MODEL_KEY) != embed_model:
+            digest = None
         if source not in hashes:
             hashes[source] = digest
         elif digest is None:
@@ -134,16 +140,19 @@ def delete_source(store: Chroma, source: str) -> None:
 
 
 def build_store() -> Chroma:
-    embeddings = OllamaEmbeddings(model=EMBED_MODEL)
     return Chroma(
         collection_name=COLLECTION_NAME,
-        embedding_function=embeddings,
+        embedding_function=build_embeddings(),
         persist_directory=str(CHROMA_DIR),
     )
 
 
 def write_file(
-    store: Chroma, path: Path, source: str, mtime: float | None = None
+    store: Chroma,
+    path: Path,
+    source: str,
+    mtime: float | None = None,
+    embed_model: str = EMBED_MODEL,
 ) -> int:
     """Replace the chunks of `source` with the chunks of the file at `path`."""
     raw = path.read_bytes()
@@ -163,6 +172,7 @@ def write_file(
             "category": category_for(path),
             "domain": domain_for(source),
             HASH_KEY: digest,
+            EMBED_MODEL_KEY: embed_model,
             "chunk_index": index,
         }
         if mtime is not None:
@@ -172,15 +182,19 @@ def write_file(
     return len(documents)
 
 
-def ingest_file(store: Chroma, path: Path, mtime: float | None = None) -> int:
+def ingest_file(
+    store: Chroma, path: Path, mtime: float | None = None, embed_model: str = EMBED_MODEL
+) -> int:
     try:
         source = relative_source(path)
     except ValueError:
         source = path.as_posix()
-    return write_file(store, path, source, mtime)
+    return write_file(store, path, source, mtime, embed_model)
 
 
-def ingest(store: Chroma, data_dir: Path = DATA_DIR) -> IngestPlan:
+def ingest(
+    store: Chroma, data_dir: Path = DATA_DIR, embed_model: str = EMBED_MODEL
+) -> IngestPlan:
     """Bring `store` in line with data_dir/**/*.md and return the plan applied."""
     if not data_dir.exists():
         raise FileNotFoundError(f"data directory not found: {data_dir}")
@@ -191,14 +205,14 @@ def ingest(store: Chroma, data_dir: Path = DATA_DIR) -> IngestPlan:
 
     plan = plan_changes(
         {source: digest for source, (_, digest) in files.items()},
-        stored_hashes(store),
+        stored_hashes(store, embed_model),
     )
     for source in plan.deleted:
         delete_source(store, source)
         print(f"deleted: {source}")
     for reason, sources in (("new", plan.new), ("updated", plan.updated)):
         for source in sources:
-            count = write_file(store, files[source][0], source)
+            count = write_file(store, files[source][0], source, embed_model=embed_model)
             print(f"ingest ({reason}): {source} -> {count} chunk(s)")
     for source in plan.unchanged:
         print(f"skip unchanged: {source}")
@@ -206,11 +220,17 @@ def ingest(store: Chroma, data_dir: Path = DATA_DIR) -> IngestPlan:
 
 
 def main() -> int:
+    load_dotenv()
+    try:
+        store = build_store()
+    except MissingApiKeyError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     if not DATA_DIR.exists():
         print(f"data directory not found: {DATA_DIR}", file=sys.stderr)
         return 1
 
-    plan = ingest(build_store(), DATA_DIR)
+    plan = ingest(store, DATA_DIR)
     print(
         f"done: {len(plan.new)} new, {len(plan.updated)} updated, "
         f"{len(plan.unchanged)} unchanged, {len(plan.deleted)} deleted"

@@ -1,6 +1,6 @@
 # Spec 036: Chroma store in git, ingested by GitHub Actions
 
-- **Status:** approved
+- **Status:** complete (all 58 unit tests and the AC-15 integration test pass after one fix round on `.gitignore`; manual ACs 13, 14, 16 checked by the planner; full-suite regression not run; marked complete by the user 2026-11-17)
 - **Date:** 2026-11-17
 
 ## 1. Goal
