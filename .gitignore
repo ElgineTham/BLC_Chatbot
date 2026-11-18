@@ -4,11 +4,12 @@ __pycache__/
 .pytest_cache/
 .mypy_cache/
 .env
-.chroma/
 .models/
 *.egg-info/
 dist/
 build/
-data/
+data/**
+!data/**/
+!data/**/*.md
 .DS_Store
 logs/

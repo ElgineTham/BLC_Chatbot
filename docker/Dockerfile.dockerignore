@@ -1,0 +1,16 @@
+.git
+.venv
+.chroma
+.env
+.models
+logs
+data
+.pytest_cache
+.mypy_cache
+__pycache__
+*.py[cod]
+.claude
+.DS_Store
+**/tests
+evals
+docs

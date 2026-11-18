@@ -15,7 +15,14 @@ from langchain_core.documents import Document  # noqa: E402
 from langchain_ollama import OllamaEmbeddings  # noqa: E402
 from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
 
-from blc.ingest import PER_BULLET_SOURCES, chunk_per_bullet  # noqa: E402
+from blc.ingest import (  # noqa: E402
+    HASH_KEY,
+    PER_BULLET_SOURCES,
+    IngestPlan,
+    chunk_per_bullet,
+    content_hash,
+    plan_changes,
+)
 from blc.retrieval import domain_for  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -94,22 +101,29 @@ def category_for(path: Path) -> str:
         return "unknown"
 
 
-def existing_mtimes(store: Chroma) -> dict[str, float]:
-    """Map source path -> stored mtime (one value per file)."""
+def stored_hashes(store: Chroma) -> dict[str, str | None]:
+    """Map source path -> stored content hash (None if any chunk lacks one)."""
     result = store.get(include=["metadatas"])
-    mtimes: dict[str, float] = {}
-    metadatas = result.get("metadatas") or []
-    for meta in metadatas:
-        if not meta:
-            continue
-        source = meta.get("source")
+    hashes: dict[str, str | None] = {}
+    for meta in result.get("metadatas") or []:
+        source = (meta or {}).get("source")
         if not source:
             continue
-        raw = meta.get("mtime")
-        if raw is None:
-            continue
-        mtimes[source] = float(raw)
-    return mtimes
+        digest = meta.get(HASH_KEY)
+        if source not in hashes:
+            hashes[source] = digest
+        elif digest is None:
+            hashes[source] = None
+    return hashes
+
+
+def scan_data_dir(data_dir: Path) -> dict[str, tuple[Path, str]]:
+    """Map source path -> (file, content hash) for every .md under data_dir."""
+    found: dict[str, tuple[Path, str]] = {}
+    for path in sorted(data_dir.rglob("*.md")):
+        source = "data/" + path.relative_to(data_dir).as_posix()
+        found[source] = (path, content_hash(path.read_bytes()))
+    return found
 
 
 def delete_source(store: Chroma, source: str) -> None:
@@ -128,31 +142,67 @@ def build_store() -> Chroma:
     )
 
 
-def ingest_file(store: Chroma, path: Path, mtime: float) -> int:
-    text = path.read_text(encoding="utf-8")
-    source = relative_source(path)
-    chunks = chunk_markdown(text, per_bullet=source in PER_BULLET_SOURCES)
+def write_file(
+    store: Chroma, path: Path, source: str, mtime: float | None = None
+) -> int:
+    """Replace the chunks of `source` with the chunks of the file at `path`."""
+    raw = path.read_bytes()
+    digest = content_hash(raw)
+    chunks = chunk_markdown(
+        raw.decode("utf-8"), per_bullet=source in PER_BULLET_SOURCES
+    )
+    delete_source(store, source)
     if not chunks:
         print(f"skip empty: {source}")
         return 0
 
-    delete_source(store, source)
-
-    documents = [
-        Document(
-            page_content=chunk,
-            metadata={
-                "source": source,
-                "category": category_for(path),
-                "domain": domain_for(source),
-                "mtime": mtime,
-                "chunk_index": index,
-            },
-        )
-        for index, chunk in enumerate(chunks)
-    ]
+    documents = []
+    for index, chunk in enumerate(chunks):
+        metadata: dict[str, str | int | float] = {
+            "source": source,
+            "category": category_for(path),
+            "domain": domain_for(source),
+            HASH_KEY: digest,
+            "chunk_index": index,
+        }
+        if mtime is not None:
+            metadata["mtime"] = mtime
+        documents.append(Document(page_content=chunk, metadata=metadata))
     store.add_documents(documents)
     return len(documents)
+
+
+def ingest_file(store: Chroma, path: Path, mtime: float | None = None) -> int:
+    try:
+        source = relative_source(path)
+    except ValueError:
+        source = path.as_posix()
+    return write_file(store, path, source, mtime)
+
+
+def ingest(store: Chroma, data_dir: Path = DATA_DIR) -> IngestPlan:
+    """Bring `store` in line with data_dir/**/*.md and return the plan applied."""
+    if not data_dir.exists():
+        raise FileNotFoundError(f"data directory not found: {data_dir}")
+
+    files = scan_data_dir(data_dir)
+    if not files:
+        return IngestPlan((), (), (), ())
+
+    plan = plan_changes(
+        {source: digest for source, (_, digest) in files.items()},
+        stored_hashes(store),
+    )
+    for source in plan.deleted:
+        delete_source(store, source)
+        print(f"deleted: {source}")
+    for reason, sources in (("new", plan.new), ("updated", plan.updated)):
+        for source in sources:
+            count = write_file(store, files[source][0], source)
+            print(f"ingest ({reason}): {source} -> {count} chunk(s)")
+    for source in plan.unchanged:
+        print(f"skip unchanged: {source}")
+    return plan
 
 
 def main() -> int:
@@ -160,41 +210,10 @@ def main() -> int:
         print(f"data directory not found: {DATA_DIR}", file=sys.stderr)
         return 1
 
-    md_files = sorted(DATA_DIR.rglob("*.md"))
-    if not md_files:
-        print(f"no markdown files under {DATA_DIR}")
-        return 0
-
-    store = build_store()
-    known = existing_mtimes(store)
-
-    ingested = 0
-    skipped = 0
-    chunk_count = 0
-
-    for path in md_files:
-        source = relative_source(path)
-        mtime = path.stat().st_mtime
-        stored = known.get(source)
-
-        if stored is not None and mtime <= stored:
-            print(f"skip unchanged: {source}")
-            skipped += 1
-            continue
-
-        reason = "new" if stored is None else "updated"
-        n_chunks = ingest_file(store, path, mtime)
-        if n_chunks == 0:
-            skipped += 1
-            continue
-
-        print(f"ingest ({reason}): {source} -> {n_chunks} chunk(s)")
-        ingested += 1
-        chunk_count += n_chunks
-
+    plan = ingest(build_store(), DATA_DIR)
     print(
-        f"done: ingested {ingested} file(s), "
-        f"skipped {skipped}, wrote {chunk_count} chunk(s)"
+        f"done: {len(plan.new)} new, {len(plan.updated)} updated, "
+        f"{len(plan.unchanged)} unchanged, {len(plan.deleted)} deleted"
     )
     return 0
 

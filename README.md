@@ -38,6 +38,32 @@ Needs Ollama running and the Chroma store (`backend/scripts/ingest.py`). The cha
 
 ---
 
+## Docker
+
+One image runs the web chat. It holds the code and Python dependencies only; `data/` and `.chroma/` are mounted from the host, and Ollama stays on the host.
+
+**Prerequisites:** Docker; Ollama running on the host with `qwen2.5:7b` and `nomic-embed-text` pulled; `data/` and `.chroma/` present in the repo root (compose refuses to start if either is missing). On Linux, Ollama must listen on more than `127.0.0.1` (e.g. `OLLAMA_HOST=0.0.0.0` for the Ollama server) so the container can reach it.
+
+Run every command from the repo root:
+
+```bash
+mkdir -p .chroma    # first time on a new machine: compose refuses a missing .chroma/
+docker compose -f docker/compose.yaml run --rm web python backend/scripts/ingest.py   # build/update .chroma/ from data/
+docker compose -f docker/compose.yaml up --build        # web chat on http://localhost:8000
+OLLAMA_HOST=http://other-host:11434 docker compose -f docker/compose.yaml up          # point at a different Ollama
+docker compose -f docker/compose.yaml up --build        # rebuild after code changes
+```
+By default the container reaches Ollama at `http://host.docker.internal:11434`.
+
+---
+
+## Knowledge and vector store in git
+
+- The markdown knowledge files (`data/**/*.md`) and the Chroma store (`.chroma/`) are **committed**, so a fresh clone already has an up-to-date vector store. **The repo is public**, so everything under `data/` and `.chroma/` (which stores chunk text verbatim) is publicly readable.
+- Ingest detects changes by file **content hash**, not modification time: it re-embeds only files whose content changed and removes the chunks of deleted files.
+- The GitHub Actions workflow `.github/workflows/ingest.yml` owns `.chroma/`. When a `data/**/*.md` file is added, changed or deleted on `main`, it re-ingests and commits the updated `.chroma/` (commit message contains `[skip ci]`). Don't commit local `.chroma/` changes; run `git restore .chroma` before pulling if you ran ingest locally.
+- Only `data/**/*.md` is committed. JSON tool data (recipes, pull-sheet menu and rules) and photos stay gitignored, so copy them to a new machine by hand.
+
 ## Voice chat
 
 You can ask questions out loud and hear the answer read back:
