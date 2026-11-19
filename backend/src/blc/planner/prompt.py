@@ -14,7 +14,14 @@ recipe scaled or given). Use calculate_bev_item (item "gallons", "cambros", "cup
 or ingredient amounts for a batch, with or without an amount) or calculate_food_item (how \
 many spoons, forks, knives, small plates or large plates for a guest count, item and guests; \
 whether cocktail napkins or dinner napkins are needed for a meal type of breakfast, \
-reception, lunch or dinner, item and meal). Napkins asked about with a drink and no meal \
+reception, lunch or dinner, item and meal). Use calculate_serving_utensils for which or how many serving utensils (tongs, serving \
+spoons, spreaders, honey bears, ladles) foods need, with every food line in one call. Forks, \
+spoons, knives, plates and napkins by guests or meal stay calculate_food_item. On a package \
+BEO, send the item lines with "unit": "each" (a number of people); the package line may be \
+left out. A plain count before a food ("20 sandwiches") is "unit": "each"; "dozen" only when written. \
+A serving-utensil question with no amount of food in the question or history still calls \
+calculate_serving_utensils with that food and qty left out, so the tool asks how many; never \
+search_documents alone. Napkins asked about with a drink and no meal \
 type are a written rule: search_documents.
 "How much ... for N gallons of a drink" asks for ingredient amounts, so it is scale_recipe, \
 even when the ingredient is named only in another part or in the history. calculate_bev_item \
@@ -28,6 +35,9 @@ scale_recipe {"recipe": "lemonade", "gallons": 8}
 Example: "How many knives for 35 guests?" -> calculate_food_item {"item": "knives", "guests": 35}
 Example: "Are cocktail napkins needed at dinner?" -> \
 calculate_food_item {"item": "cocktail napkins", "meal": "dinner"}
+
+Example: "Which tongs for 7 dozen bagels?" -> \
+calculate_serving_utensils {"items": [{"food": "bagels", "qty": 7, "unit": "dozen"}]}
 
 Rule 2. DOCS: the answer can be looked up, because it is written down. Use search_documents. \
 This covers where something is kept or goes, what something is (menu, package contents, \

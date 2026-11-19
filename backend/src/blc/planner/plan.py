@@ -11,11 +11,12 @@ from langchain_core.tools import BaseTool
 from blc.planner.bev_view import PLANNER_BEV_TOOL
 from blc.planner.food_view import PLANNER_FOOD_TOOL
 from blc.planner.prompt import PLANNER_PROMPT
+from blc.planner.serv_view import PLANNER_SERV_TOOL
 from blc.planner.search_tool import SEARCH_TOOL, SEARCH_TOOL_NAME
 from blc.tools.recipe_tools import RECIPE_TOOL
 
 PLANNER_TOOLS: tuple[BaseTool, ...] = (
-    SEARCH_TOOL, PLANNER_BEV_TOOL, RECIPE_TOOL, PLANNER_FOOD_TOOL,
+    SEARCH_TOOL, PLANNER_BEV_TOOL, RECIPE_TOOL, PLANNER_FOOD_TOOL, PLANNER_SERV_TOOL,
 )
 PLAN_ROUTES: tuple[str, ...] = ("TOOL", "DOCS", "BOTH")
 HISTORY_HEADER = "Recent chat history:"

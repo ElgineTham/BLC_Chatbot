@@ -146,7 +146,7 @@ def test_building_the_graph_calls_no_model_store_or_runner(make_llm, make_store,
 def test_default_tool_runners_have_exactly_the_two_tool_names():
     """Covers: AC-4 (right), EC-15; spec 030 AC-4. Keys are exactly calculate_bev_item, scale_recipe and
     calculate_food_item, each callable."""
-    assert set(DEFAULT_TOOL_RUNNERS) == {BEV, REC, "calculate_food_item"}
+    assert set(DEFAULT_TOOL_RUNNERS) == {BEV, REC, "calculate_food_item", "calculate_serving_utensils"}
     assert all(callable(v) for v in DEFAULT_TOOL_RUNNERS.values())
 
 

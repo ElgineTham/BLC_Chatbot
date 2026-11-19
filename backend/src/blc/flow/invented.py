@@ -9,9 +9,14 @@ from blc.tool_step.numbers import ALWAYS_ACCEPTED, as_number, numbers_in
 from blc.tools.bev_tools import BEV_TOOL_NAME
 from blc.tools.food_tools import FOOD_TOOL_NAME
 from blc.tools.recipe_tools import RECIPE_TOOL_NAME
+from blc.tools.serv_tools import SERV_TOOL_NAME
 
 CHECKED_ARGUMENTS: tuple[str, ...] = ("guests", "gallons")
 CHECKED_TOOLS: frozenset[str] = frozenset({BEV_TOOL_NAME, RECIPE_TOOL_NAME, FOOD_TOOL_NAME})
+
+
+ITEMS_ARGUMENT = "items"
+ITEM_QTY = "qty"
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,24 @@ def _values_of(value: object) -> list[object]:
     return list(value) if isinstance(value, (list, tuple)) else [value]
 
 
+def _serv_items(args: Mapping[str, object]) -> list[Mapping[str, object]]:
+    items = args.get(ITEMS_ARGUMENT)
+    items = [items] if isinstance(items, Mapping) else items
+    if not isinstance(items, (list, tuple)):
+        return []
+    return [item for item in items if isinstance(item, Mapping)]
+
+
+def invented_item_quantities(
+    args: Mapping[str, object], allowed: set[float]
+) -> tuple[object, ...]:
+    """The qty values of the serving items that are not in the allowed numbers."""
+    return tuple(
+        item[ITEM_QTY] for item in _serv_items(args)
+        if (number := as_number(item.get(ITEM_QTY))) is not None and number not in allowed
+    )
+
+
 def invented_numbers(
     name: str,
     args: Mapping[str, object],
@@ -46,6 +69,9 @@ def invented_numbers(
 ) -> dict[str, tuple[object, ...]]:
     """Each checked argument with invented values, mapped to those values. Never raises."""
     try:
+        if name == SERV_TOOL_NAME:
+            bad = invented_item_quantities(args, allowed_numbers(question, history))
+            return {ITEM_QTY: bad} if bad else {}
         if name not in CHECKED_TOOLS:
             return {}
         allowed = allowed_numbers(question, history)

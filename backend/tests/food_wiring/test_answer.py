@@ -34,8 +34,9 @@ def _word(text, w):
 # ---------------------------------------------------------------- AC-4 default runner
 
 def test_default_runner_keys_are_exactly_the_three():
-    """Covers: AC-4 (right), ANSWER-1. Keys are exactly the bev, recipe and food names; every value callable."""
-    assert set(DEFAULT_TOOL_RUNNERS) == {BEV, REC, FOOD}
+    """Covers: AC-4 (right), ANSWER-1. Keys are the bev, recipe and food names plus (spec 043) the serving
+    utensils tool; every value callable."""
+    assert set(DEFAULT_TOOL_RUNNERS) == {BEV, REC, FOOD, "calculate_serving_utensils"}
     assert all(callable(v) for v in DEFAULT_TOOL_RUNNERS.values())
 
 

@@ -8,6 +8,7 @@ from typing import Callable, Mapping
 from blc.tools.bev_tools import run_bev_tool
 from blc.tools.food_tools import run_food_tool
 from blc.tools.recipe_tools import run_recipe_tool
+from blc.tools.serv_tools import SERV_TOOL_NAME, run_serv_tool
 
 ERROR_STATUS = "error"
 NO_RUNNER_TEXT = "error: no runner for {name}"
@@ -38,10 +39,16 @@ def _run_food(args: dict[str, object]) -> ToolOutput:
     return ToolOutput(result.status, result.text)
 
 
+def _run_serv(args: dict[str, object]) -> ToolOutput:
+    result = run_serv_tool(args)
+    return ToolOutput(result.status, result.text)
+
+
 DEFAULT_TOOL_RUNNERS: Mapping[str, ToolRunner] = {
     "calculate_bev_item": _run_bev,
     "scale_recipe": _run_recipe,
     "calculate_food_item": _run_food,
+    SERV_TOOL_NAME: _run_serv,
 }
 
 
