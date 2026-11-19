@@ -46,22 +46,16 @@ def test_genai_is_still_main_dependency(pyproject):
 
 
 def test_anthropic_not_only_in_a_group(pyproject):
-    """Covers: AC-8 (wrong), REPO-1. langchain-anthropic is not hidden in the eval or voice group alone."""
+    """Covers: AC-8 (wrong), REPO-1. langchain-anthropic is not hidden in the eval group alone."""
     groups = pyproject["tool"]["poetry"]["group"]
-    for gname in ("eval", "voice"):
-        assert "langchain-anthropic" not in _dep_names(groups[gname]["dependencies"]), gname
+    assert "langchain-anthropic" not in _dep_names(groups["eval"]["dependencies"])
 
 
-def test_eval_and_voice_groups_unchanged(pyproject):
-    """Covers: AC-8 (boundary), REPO-1. The eval group keeps the Ollama packages; voice keeps its three."""
+def test_eval_group_unchanged(pyproject):
+    """Covers: AC-8 (boundary), REPO-1; spec 041 AC-5. The eval group keeps the Ollama packages; it is the only group (voice is gone)."""
     groups = pyproject["tool"]["poetry"]["group"]
-    assert set(groups) == {"eval", "voice"}
+    assert set(groups) == {"eval"}
     assert _dep_names(groups["eval"]["dependencies"]) == {"ollama", "langchain-ollama"}
-    assert groups["voice"]["dependencies"] == {
-        "faster-whisper": ">=1.1,<2.0",
-        "piper-tts": ">=1.3,<2.0",
-        "sounddevice": ">=0.5,<0.6",
-    }
 
 
 # ---- REPO-2 / AC-8

@@ -27,8 +27,8 @@ Also:
 - Add test cases you think the spec implies but didn't list, and report them.
 
 ## Test layers
-- **Unit (default):** mock or fake Ollama and Chroma (e.g. `monkeypatch`, small fake classes). Deterministic, no network.
-- **Integration:** real Ollama/Chroma. Mark `@pytest.mark.integration` and skip if Ollama is unavailable.
+- **Unit (default):** mock or fake the chat model, embeddings and Chroma (e.g. `monkeypatch`, small fake classes). Deterministic, no network.
+- **Integration:** real Anthropic/Gemini/Chroma. Mark `@pytest.mark.integration` and skip if the needed API key (or, for the eval judge, Ollama) is unavailable.
 - **Eval:** golden-set quality checks. Mark `@pytest.mark.eval`.
 
 ## Traceability

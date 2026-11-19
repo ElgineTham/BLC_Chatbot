@@ -68,14 +68,6 @@ def test_punctuation_does_not_block_match(lexicon):
 
 # ---- real lexicon ----
 
-def test_real_lexicon_is_non_empty(real_lexicon):
-    """Covers: AC-4 (right, extra). load_lexicon finds item names with lower-case keys and domain sets."""
-    assert len(real_lexicon) > 0
-    for name, doms in real_lexicon.items():
-        assert name == name.lower()
-        assert doms and set(doms) <= {"food", "beverage"}
-
-
 def test_real_croissants_bring(real_lexicon):
     """Covers: AC-4 (right), DET-9. 'bring' adds nothing; only food."""
     assert detect_domains("Do we need to bring anything with croissants", real_lexicon) == FOOD

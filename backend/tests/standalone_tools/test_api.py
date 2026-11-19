@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 SHARED = ["Catalog", "load_catalog", "RuleFileError", "PullLine", "GALLON", "EACH", "GUESTS_PER_GALLON"]
 BEV_PUBLIC = [
     "BEV_TOOL_NAME", "BEV_ITEMS", "BEV_STATUSES", "DrinkRequest", "DrinkAmount", "BevResult",
-    "calculate_bev_item", "run_bev_tool", "make_bev_tool", "BEV_TOOL",
+    "calculate_bev_item", "run_bev_tool",
     "Catalog", "load_catalog", "RuleFileError", "PullLine", "GALLON", "EACH", "GUESTS_PER_GALLON",
     "guests_to_gallons",
 ]
@@ -79,19 +79,19 @@ def test_default_rules_dir():
 
 
 def test_tool_names():
-    """Covers: API-6, AC-4 (right). Tool factories and RECIPE_TOOL carry the documented names."""
-    from blc.tools.bev_tools import make_bev_tool
+    """Covers: API-6, AC-4 (right). The recipe tool factory and RECIPE_TOOL carry the documented names; the bev tool object is gone (spec 041)."""
+    from blc.tools.bev_tools import BEV_TOOL_NAME
     from blc.tools.recipe_tools import RECIPE_TOOL, make_recipe_tool
-    assert make_bev_tool().name == "calculate_bev_item"
+    assert BEV_TOOL_NAME == "calculate_bev_item"
     assert make_recipe_tool().name == "scale_recipe"
     assert RECIPE_TOOL.name == "scale_recipe"
 
 
 def test_tool_names_are_not_swapped():
-    """Covers: API-6, AC-4 (wrong). The bev tool is not the recipe tool."""
-    from blc.tools.bev_tools import BEV_TOOL
+    """Covers: API-6, AC-4 (wrong). The bev tool name is not the recipe tool name."""
+    from blc.tools.bev_tools import BEV_TOOL_NAME
     from blc.tools.recipe_tools import RECIPE_TOOL
-    assert BEV_TOOL.name != RECIPE_TOOL.name
+    assert BEV_TOOL_NAME != RECIPE_TOOL.name
 
 
 def test_catalog_from_pull_sheet_works_with_calculate(need_pull_sheet_data):

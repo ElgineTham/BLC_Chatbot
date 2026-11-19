@@ -1,6 +1,6 @@
 # Spec 039: Chat on Claude Haiku, embeddings stay on Gemini
 
-- **Status:** approved (revised 2026-11-18 after the first round: AC-1 temperature must reach the API, AC-4 live fixtures must not expose keys, AC-14/MIGRATE-1 clarified; revised again after round-2 test review: AC-4/MIGRATE-5 cover every fixture under `backend/tests/`)
+- **Status:** approved (done: closed by the user on 2026-11-18. Verified: 178/178 spec 039 unit tests; live AC-1b, AC-10, AC-13 pass; AC-15/AC-16 checked by the planner. Not verified: AC-11 only 1 of 3 history shapes ran (other 2 hit the Gemini free-tier 429 embedding quota), AC-12 eval not run (Ollama judge). Known risk: the temperature fix pins `anthropic-version: 2023-06-01`. The 74 pre-existing unit failures and 2 collection errors in older suites predate this spec. Revised 2026-11-18 after the first round: AC-1 temperature must reach the API, AC-4 live fixtures must not expose keys, AC-14/MIGRATE-1 clarified; revised again after round-2 test review: AC-4/MIGRATE-5 cover every fixture under `backend/tests/`)
 - **Date:** 2026-11-18
 
 ## 1. Goal

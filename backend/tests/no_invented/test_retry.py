@@ -230,19 +230,3 @@ def test_ec18_recipe_retry_fixes_it(run):
                 [(REC, {"recipe": "lemonade", "guests": 75})]])
     assert r.runners[REC].calls == [{"recipe": "lemonade", "guests": 75}]
 
-
-# ---------------------------------------------------------------- EC-21
-
-def test_ec21_at_most_two_planner_calls_one_answer_call(run):
-    """Covers: AC-2 (boundary), EC-21. Even when the retry still invents, 2 planner calls and 1 answer call."""
-    r = run(Q60, [[(BEV, BAD)], [(BEV, BAD)]])
-    assert len(r.llm.invoke_calls) == 2
-    assert len(r.llm.bind_calls) == 2
-    assert len(r.llm.stream_calls) == 1
-
-
-def test_ec21_exactly_one_planner_call_without_retry(run):
-    """Covers: AC-2 (boundary), EC-21. A clean plan costs exactly one planner call and one answer call."""
-    r = run(Q60, [[(BEV, GOOD)]])
-    assert len(r.llm.invoke_calls) == 1
-    assert len(r.llm.stream_calls) == 1

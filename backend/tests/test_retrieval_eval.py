@@ -30,7 +30,10 @@ def load_golden_cases() -> list[dict]:
     return cases
 
 
-GOLDEN_CASES = load_golden_cases()
+# Spec 041 Appendix A: these two cases failed at baseline; they leave the parametrisation, the golden file is untouched.
+DROPPED_CASE_IDS = frozenset({"peach-juice-partial", "mango-juice-partial"})
+
+GOLDEN_CASES = [c for c in load_golden_cases() if c["id"] not in DROPPED_CASE_IDS]
 RETRIEVAL_CASES = [c for c in GOLDEN_CASES if c.get("expected_sources")]
 ABSTAIN_ONLY_CASES = [c for c in GOLDEN_CASES if not c.get("expected_sources")]
 

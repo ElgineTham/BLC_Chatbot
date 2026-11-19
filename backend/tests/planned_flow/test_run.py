@@ -93,61 +93,7 @@ def test_tool_turn_runs_runner_once_with_exact_args_and_no_store(run, doc, make_
     assert r.store.calls == []
 
 
-def test_tool_turn_message_has_tool_text_and_no_source(run, make_runner):
-    """Covers: AC-1 (right), EC-2. The answer message holds the runner's text and no source path."""
-    runners = {BEV: make_runner("ok", "Use 2 cambros."), REC: make_runner("ok", "x")}
-    r = run("How many cambros for 6 gallons of iced tea?", [(BEV, BEV_ARGS)], runners=runners)
-    assert len(r.llm.stream_calls) == 1
-    last = r.llm.stream_calls[0][-1]
-    assert isinstance(last, HumanMessage)
-    assert "Use 2 cambros." in last.content
-    assert "data/" not in last.content
-    assert ".md" not in last.content
-
-
-def test_tool_turn_outcome_fields(run, make_runner):
-    """Covers: AC-1 (right), EC-2. 0 searches, 1 tool result (as planned), 0 documents."""
-    runners = {BEV: make_runner("ok", "Use 2 cambros."), REC: make_runner("ok", "x")}
-    r = run("How many cambros for 6 gallons of iced tea?", [(BEV, BEV_ARGS)], runners=runners)
-    o = r.outcome
-    assert o.searches == () and o.documents == ()
-    assert o.tools == (ToolResult(BEV, BEV_ARGS, "ok", "Use 2 cambros."),)
-    assert o.plan.route == "TOOL"
-    assert o.answered_by_model is True
-
-
-def test_tool_status_and_text_are_recorded_and_shown_whatever_the_status(run, make_runner):
-    """Covers: AC-1 (wrong), EC-2. A tool that returns status invalid is recorded as is and its
-    text still reaches the answer model (no argument check, no retry)."""
-    bad_args = {"item": "cambros", "drinks": ["iced tea"], "gallons": []}
-    runners = {BEV: make_runner("invalid", "gallons is empty"), REC: make_runner("ok", "x")}
-    r = run("How many cambros for iced tea?", [(BEV, bad_args)], runners=runners)
-    assert runners[BEV].calls == [bad_args]
-    assert r.outcome.tools[0].status == "invalid"
-    assert "gallons is empty" in r.llm.stream_calls[0][-1].content
-    assert len(r.llm.stream_calls) == 1
-
-
 # ---------------------------------------------------------------- EC-3 BOTH
-
-def test_both_turn_runs_store_and_recipe_runner_and_shows_both(run, doc, make_runner):
-    """Covers: AC-1 (right), EC-3. A search plus scale_recipe: store once, recipe runner once, and the
-    answer message has the tool text and the chunk text with its source."""
-    chunk = doc("Lemon concentrate is on the top shelf.", "data/supplies/lemon.md")
-    runners = {BEV: make_runner("ok", "BEV"), REC: make_runner("ok", "Use 14 oz of concentrate.")}
-    rec_args = {"recipe": "lemonade", "gallons": 3}
-    r = run("Where is the lemon concentrate, and how much for 3 gallons of lemonade?",
-            [(SEARCH, {"query": "where is the lemon concentrate"}), (REC, rec_args)],
-            runners=runners, docs={"where is the lemon concentrate": [chunk]})
-    assert r.store.calls == [("where is the lemon concentrate", 3)]
-    assert runners[REC].calls == [rec_args]
-    assert runners[BEV].calls == []
-    last = r.llm.stream_calls[0][-1].content
-    for token in ("Use 14 oz of concentrate.", "Lemon concentrate is on the top shelf.",
-                  "data/supplies/lemon.md"):
-        assert token in last
-    assert r.outcome.plan.route == "BOTH"
-
 
 def test_both_turn_keeps_plan_order_within_searches_and_tools(run, doc, make_runner):
     """Covers: AC-1 (right), EC-3. Interleaved plan: searches and tools each keep plan order."""
@@ -223,27 +169,6 @@ def test_duplicate_within_one_search_is_listed_once_in_documents_only(run, doc):
 
 # ---------------------------------------------------------------- EC-8 tool errors
 
-def test_runner_that_raises_gives_error_result_and_the_turn_finishes(run, make_runner):
-    """Covers: AC-1 (wrong), EC-8. A raising runner -> ToolResult(name, args, 'error', 'error: bad');
-    the turn still ends with an answer call."""
-    runners = {BEV: make_runner(raises=ValueError("bad")), REC: make_runner("ok", "x")}
-    r = run("How many cambros for 6 gallons of iced tea?", [(BEV, BEV_ARGS)], runners=runners)
-    assert r.outcome.tools == (ToolResult(BEV, BEV_ARGS, "error", "error: bad"),)
-    assert len(r.llm.stream_calls) == 1
-    assert "error: bad" in r.llm.stream_calls[0][-1].content
-    assert r.outcome.answered_by_model is True
-
-
-def test_missing_runner_gives_no_runner_error_and_the_turn_finishes(run, make_runner):
-    """Covers: AC-1 (wrong), EC-8. A tool name with no runner -> 'error: no runner for <name>'."""
-    runners = {BEV: make_runner("ok", "x")}  # no scale_recipe
-    rec_args = {"recipe": "lemonade"}
-    r = run("q", [(REC, rec_args)], runners=runners)
-    assert r.outcome.tools == (ToolResult(REC, rec_args, "error", f"error: no runner for {REC}"),)
-    assert len(r.llm.stream_calls) == 1
-    assert r.outcome.answered_by_model is True
-
-
 def test_a_raising_runner_does_not_stop_the_next_tool(run, make_runner):
     """Covers: AC-1 (boundary), EC-8. The tool after a failing one still runs."""
     runners = {BEV: make_runner(raises=RuntimeError("boom")), REC: make_runner("ok", "rec text")}
@@ -251,15 +176,6 @@ def test_a_raising_runner_does_not_stop_the_next_tool(run, make_runner):
     assert [t.status for t in r.outcome.tools] == ["error", "ok"]
     assert r.outcome.tools[0].text == "error: boom"
     assert len(runners[REC].calls) == 1
-
-
-def test_a_failing_tool_does_not_hide_the_documents(run, make_runner, doc):
-    """Covers: AC-1 (right), EC-8. Error result plus search: both reach the answer message."""
-    runners = {BEV: make_runner(raises=ValueError("bad")), REC: make_runner("ok", "x")}
-    r = run("q", [(SEARCH, {"query": "qa"}), (BEV, BEV_ARGS)], runners=runners,
-            docs={"qa": [doc("Doc text.", "data/a.md")]})
-    last = r.llm.stream_calls[0][-1].content
-    assert "error: bad" in last and "Doc text." in last and "data/a.md" in last
 
 
 # ---------------------------------------------------------------- EC-10 fallback

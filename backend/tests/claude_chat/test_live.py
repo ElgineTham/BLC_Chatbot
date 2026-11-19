@@ -42,19 +42,6 @@ def test_temperature_reaches_api_without_http_400(live_anthropic_key, temperatur
     assert _text(out.content).strip()
 
 
-# ---- LIVE-2 / AC-10
-
-def test_route_fast_on_claude_is_not_a_fallback(live_anthropic_key):
-    """Covers: AC-10 (right), LIVE-2. A question that needs the model: the decision is not a fallback."""
-    from blc.llm import build_chat_model
-    from blc.router import route_fast
-
-    decision = route_fast(
-        build_chat_model(), [], "How many hot cups for 130 guests and where is the coffee?"
-    )
-    assert decision.fallback is False
-
-
 # ---- LIVE-3 / AC-10
 
 @pytest.mark.parametrize(

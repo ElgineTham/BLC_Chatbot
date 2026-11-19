@@ -22,7 +22,7 @@ You may read the spec, `backend/` (code and tests), `frontend/`, `evals/`, `CLAU
 1. Find the test files for this spec (their docstrings cite the spec's AC and test case IDs, e.g. `AC-2`, `TOOL-1`).
 2. Run the unit layer first:
    `PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 poetry run pytest <files> -m "not integration and not eval" -v`
-3. If the spec requires integration or eval verification, run those layers separately. If Ollama is unavailable they will be skipped: report that, and don't treat skips as passes.
+3. If the spec requires integration or eval verification, run those layers separately. If an API key (or Ollama, for the eval judge) is unavailable they will be skipped: report that, and don't treat skips as passes.
 4. For each failure, read the test and the relevant code and diagnose it.
 
 ## Diagnosis

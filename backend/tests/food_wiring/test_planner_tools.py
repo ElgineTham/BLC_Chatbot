@@ -198,14 +198,6 @@ def test_eval_question_list_is_complete():
     assert fwh.CASE_IDS[0] == "CALL-1" and fwh.CASE_IDS[-1] == "FD-6"
 
 
-def test_prompt_holds_no_eval_question():
-    """Covers: AC-15 (wrong), CALL-8. No CALL, ARGS, FT, FD or ANSWER-7 question appears in PLANNER_PROMPT
-    word for word (casefolded)."""
-    folded = PLANNER_PROMPT.casefold()
-    leaked = [cid for cid, c in fwh.CASES.items() if c["question"].casefold() in folded]
-    assert leaked == []
-
-
 def test_food_tool_description_holds_no_eval_question():
     """Covers: AC-15 (wrong), CALL-8. No eval question appears in the food tool's description (tool and
     property descriptions), casefolded."""

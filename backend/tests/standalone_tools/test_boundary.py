@@ -67,18 +67,6 @@ def test_no_langchain_after_importing_both(fresh):
     assert fresh(TOUCH_BEV + TOUCH_RECIPE)["forbidden"] == []
 
 
-def test_accessing_bev_tool_loads_langchain(fresh):
-    """Covers: BOUNDARY-5, AC-3 (wrong: lazy loading ends on access), AC-4 (right)."""
-    code = (
-        "import blc.tools.bev_tools as b, blc.tools.recipe_tools as r\n"
-        "assert 'langchain_core' not in sys.modules\n"
-        "t = b.BEV_TOOL\n"
-        "assert t.name == 'calculate_bev_item', t.name\n"
-    )
-    report = fresh(code)
-    assert any(m.startswith("langchain") for m in report["forbidden"]), report
-
-
 def test_accessing_recipe_tool_loads_langchain(fresh):
     """Covers: BOUNDARY-5, AC-4 (right). RECIPE_TOOL loads LangChain on access and is named scale_recipe."""
     code = (
@@ -94,9 +82,7 @@ def test_accessing_recipe_tool_loads_langchain(fresh):
 def test_from_import_of_tool_objects_works(fresh):
     """Covers: AC-4 (right). The from-import form of the LangChain names still works."""
     code = (
-        "from blc.tools.bev_tools import BEV_TOOL, make_bev_tool\n"
         "from blc.tools.recipe_tools import RECIPE_TOOL, make_recipe_tool\n"
-        "assert BEV_TOOL.name == 'calculate_bev_item'\n"
         "assert RECIPE_TOOL.name == 'scale_recipe'\n"
     )
     fresh(code)

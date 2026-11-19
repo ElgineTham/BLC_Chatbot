@@ -20,7 +20,6 @@ from blc.planner import (
     PlannedCall,
     plan_question,
 )
-from blc.tools.bev_tools import BEV_TOOL
 from blc.tools.recipe_tools import RECIPE_TOOL
 
 BEV = "calculate_bev_item"
@@ -65,11 +64,6 @@ def test_planner_tools_identity_and_order():
     assert PLANNER_TOOLS[3].name == FOOD_TOOL_NAME == "calculate_food_item"
 
 
-def test_planner_tools_do_not_contain_real_bev_tool():
-    """Covers: AC-1 (wrong), EC-1b. The planner offers its own view, not the real BEV_TOOL."""
-    assert all(t is not BEV_TOOL for t in PLANNER_TOOLS)
-
-
 # --------------------------------------------------------------------------
 # AC-1 PLANNER_BEV_TOOL (EC-1b)
 # --------------------------------------------------------------------------
@@ -96,10 +90,9 @@ def _all_description_text(tool):
     return "\n".join(parts)
 
 
-def test_planner_bev_tool_is_separate_object_same_name():
-    """Covers: AC-1 (right), EC-1b. A different object from BEV_TOOL, same name calculate_bev_item."""
-    assert PLANNER_BEV_TOOL is not BEV_TOOL
-    assert PLANNER_BEV_TOOL.name == BEV_TOOL.name == "calculate_bev_item"
+def test_planner_bev_tool_name():
+    """Covers: AC-1 (right), EC-1b. PLANNER_BEV_TOOL is named calculate_bev_item (the real tool object is gone, spec 041)."""
+    assert PLANNER_BEV_TOOL.name == "calculate_bev_item"
 
 
 def test_planner_bev_tool_schema_properties():
@@ -114,26 +107,6 @@ def test_planner_bev_tool_item_enum_exact():
     enum = _item_enum(PLANNER_BEV_TOOL)
     assert list(enum) == ["gallons", "cambros", "cups", "everything"]
     assert "supplies" not in enum
-
-
-def test_real_bev_tool_still_has_supplies():
-    """Covers: AC-1 (wrong), EC-1b. BEV_TOOL is unchanged: its item enum still contains 'supplies'."""
-    assert "supplies" in _item_enum(BEV_TOOL)
-
-
-@pytest.mark.parametrize("prop", ["drinks", "gallons", "guests"])
-def test_planner_bev_tool_other_arg_types_match_bev_tool(prop):
-    """Covers: AC-1 (right), EC-1b. drinks, gallons, guests have the same types as in BEV_TOOL."""
-    def strip(d):
-        if isinstance(d, dict):
-            return {k: strip(v) for k, v in d.items() if k not in ("description", "title")}
-        if isinstance(d, list):
-            return [strip(v) for v in d]
-        return d
-
-    mine = strip(_params(PLANNER_BEV_TOOL)["properties"][prop])
-    real = strip(_params(BEV_TOOL)["properties"][prop])
-    assert mine == real
 
 
 def test_planner_bev_tool_descriptions_not_supply_job():
@@ -221,12 +194,11 @@ def test_prompt_states_how_much_rule():
 
 
 def test_bound_tools_use_planner_bev_tool(make_llm, mk):
-    """Covers: AC-1 (right), AC-2 (right), EC-3. The model is given PLANNER_BEV_TOOL, never the real BEV_TOOL."""
+    """Covers: AC-1 (right), AC-2 (right), EC-3. The model is given PLANNER_BEV_TOOL."""
     llm = make_llm(mk.ai((SEARCH, {"query": "x"})))
     plan_question(llm, "Where is the coffee?")
     bound = llm.bind_calls[0]
     assert any(t is PLANNER_BEV_TOOL for t in bound)
-    assert all(t is not BEV_TOOL for t in bound)
 
 
 def test_prompt_is_nonempty_string():

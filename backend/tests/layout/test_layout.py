@@ -9,8 +9,8 @@ try:
 except ModuleNotFoundError:  # Python 3.10
     import tomli as tomllib
 
-ENTRY_POINTS = ["chat.py", "ingest.py", "pull_sheet.py", "trace_flow.py", "voice_chat.py", "web.py"]
-MODULES = ["chat", "ingest", "web", "pull_sheet", "trace_flow", "voice_chat", "blc.flow"]
+ENTRY_POINTS = ["chat.py", "ingest.py", "pull_sheet.py", "web.py"]  # spec 041: trace_flow, voice_chat removed
+MODULES = ["chat", "ingest", "web", "pull_sheet", "blc.flow"]
 
 
 def _pytest_options(repo_root):
@@ -59,13 +59,13 @@ def test_blc_packages_are_under_backend_src(repo_root):
     """Covers: LAYOUT-1, AC-1 (right). backend/src/blc is a package and holds the feature packages."""
     blc = repo_root / "backend" / "src" / "blc"
     assert (blc / "__init__.py").is_file()
-    for pkg in ("flow", "router", "tools", "pull_sheet"):
+    for pkg in ("flow", "tools", "pull_sheet"):
         assert (blc / pkg / "__init__.py").is_file(), pkg
 
 
 def test_tests_moved_with_their_subfolders(repo_root):
     """Covers: LAYOUT-1, AC-1 (right). Existing test sub-folders now live under backend/tests/."""
-    for sub in ("flow", "router", "pull_sheet", "web"):
+    for sub in ("pull_sheet", "web"):
         assert (repo_root / "backend" / "tests" / sub).is_dir(), sub
 
 
@@ -104,16 +104,6 @@ def test_pytest_old_paths_not_configured(repo_root):
         assert old not in opts["pythonpath"]
 
 
-def test_pytest_markers_and_addopts_unchanged(repo_root):
-    """Covers: LAYOUT-3, AC-2 (boundary). Both markers keep their text and addopts is still --import-mode=importlib."""
-    opts = _pytest_options(repo_root)
-    assert opts["addopts"] == "--import-mode=importlib"
-    assert opts["markers"] == [
-        "integration: uses real Ollama/Chroma; skipped if Ollama is unavailable",
-        "eval: golden-set quality metrics judged against thresholds",
-    ]
-
-
 def test_poetry_package_mode_unchanged(repo_root):
     """Covers: LAYOUT-3, AC-2 (boundary). The rest of pyproject.toml is untouched: package-mode is still false."""
     with open(repo_root / "pyproject.toml", "rb") as f:
@@ -134,7 +124,7 @@ def test_module_imports_from_backend(repo_root, name):
     assert backend in f.parents, f
 
 
-@pytest.mark.parametrize("name", ["chat", "ingest", "web", "pull_sheet", "trace_flow", "voice_chat"])
+@pytest.mark.parametrize("name", ["chat", "ingest", "web", "pull_sheet"])
 def test_entry_module_is_the_backend_scripts_file(repo_root, name):
     """Covers: LAYOUT-4, AC-5 (boundary). The entry-point module resolves to backend/scripts/<name>.py exactly."""
     mod = importlib.import_module(name)

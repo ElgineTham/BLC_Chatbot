@@ -6,9 +6,6 @@ Helpers are exposed as fixtures so test files never import this module.
 Fixtures:
 - cases / case_by_id     the A1-A10, D1-D10, M1-M10 eval cases (section 6) as dicts: id, path, history, question, reference
 - j_cases / j_case       the calibration cases J1-J10 (id, path, question, reference, answer, expected); `j_case` is parametrized
-- make_trace             build a hand-made TurnTrace for the scorer tests
-- FakeJudge              a recording stand-in for judge_answer (verdicts are given, not computed)
-- score_case, Score      the scorer of section 4.3: a pure function on a TurnTrace, a case and a judge (NFR-6 style)
 - grounding_env          (eval only) the real store, chat model and judge model, warmed up; skips when unavailable (NFR-3)
 - calibration_failures   (eval only) session-wide: the J ids that gave the wrong verdict (empty list = calibrated)
 """
@@ -17,7 +14,6 @@ from __future__ import annotations
 
 import sys
 import urllib.request
-from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -169,102 +165,6 @@ def j_cases():
 def pytest_generate_tests(metafunc):
     if "j_case" in metafunc.fixturenames:
         metafunc.parametrize("j_case", J_CASES, ids=[c["id"] for c in J_CASES])
-
-
-# --------------------------------------------------------------------------
-# Hand-made traces and a fake judge (unit tests of the scorer)
-# --------------------------------------------------------------------------
-
-@pytest.fixture
-def make_trace():
-    """make_trace(kind, reply, chunks=(), tool_texts=(), question="q", history=()) -> TurnTrace.
-    chunks: iterable of (source, text). tool_texts: strings, one tool stage each. `kind` is the route kind."""
-    from blc.router import RouteDecision, RoutedPart
-    from blc.trace import RetrievalStage, RetrievedChunk, ToolCallLog, ToolStage, TurnTrace
-
-    def _make(kind, reply, chunks=(), tool_texts=(), question="q", history=()):
-        retrieval = RetrievalStage(
-            question, 4,
-            tuple(RetrievedChunk(rank=i + 1, source=s, text=t) for i, (s, t) in enumerate(chunks)),
-        )
-        stages = tuple(
-            ToolStage(question, (ToolCallLog("calculate_bev_item", {}, text, False),), text, False)
-            for text in tool_texts
-        )
-        parts = (RoutedPart(kind if kind != BOTH else "TOOL", question, "calculate_bev_item" if kind != DOCS else None),)
-        return TurnTrace(question, tuple(history), retrieval, RouteDecision(parts, kind, False), stages, reply)
-
-    return _make
-
-
-class FakeJudge:
-    """Stands in for judge_answer: returns a given verdict and records every call."""
-
-    def __init__(self, passed=True, reason="because"):
-        from blc.judge import Verdict
-
-        self.verdict = Verdict(passed=passed, reason=reason)
-        self.calls = []
-
-    def __call__(self, question, reference, answer, path=None):
-        self.calls.append({"question": question, "reference": reference, "answer": answer, "path": path})
-        return self.verdict
-
-
-@pytest.fixture(name="FakeJudge")
-def _fake_judge_fixture():
-    return FakeJudge
-
-
-# --------------------------------------------------------------------------
-# The scorer (section 4.3): a pure function
-# --------------------------------------------------------------------------
-
-@dataclass(frozen=True)
-class Score:
-    passed: bool
-    stages: tuple[str, ...]       # failed stages in order: route, judge, numbers, sources; ("calibration",) if not graded
-    detail: str                   # the judge's reason, or the failed J ids
-    ungrounded: tuple[str, ...]
-    unknown: tuple[str, ...]
-
-
-def score_case(trace, case, judge, failed_calibration=()):
-    """Section 4.3 / EC-18. `judge(question, reference, answer, path=...)` returns a Verdict.
-    If failed_calibration is not empty, nothing is graded and the judge is not called."""
-    from blc.judge import ungrounded_numbers, unknown_sources
-
-    if failed_calibration:
-        return Score(False, ("calibration",), "judge failed calibration: " + ", ".join(failed_calibration), (), ())
-    path = case["path"]
-    stages = []
-    kind = trace.route.kind if trace.route is not None else None
-    if kind != path:
-        stages.append("route")
-    reply = trace.reply or ""
-    verdict = judge(case["question"], case["reference"], reply, path=path)
-    if not verdict.passed:
-        stages.append("judge")
-    chunks = tuple(trace.retrieval.chunks) if trace.retrieval is not None else ()
-    material = []
-    if path in (TOOL, BOTH):
-        material += [s.tool_text for s in trace.tools if s.tool_text]
-    if path in (DOCS, BOTH):
-        material += [c.text for c in chunks]
-    history = [m.get("content", "") for m in list(case["history"]) + list(trace.history)]
-    ungrounded = ungrounded_numbers(reply, material + [case["question"]] + history)
-    if ungrounded:
-        stages.append("numbers")
-    allowed = [c.source for c in chunks] if path in (DOCS, BOTH) else []
-    unknown = unknown_sources(reply, allowed)
-    if unknown:
-        stages.append("sources")
-    return Score(not stages, tuple(stages), verdict.reason, ungrounded, unknown)
-
-
-@pytest.fixture(name="score_case")
-def _score_case_fixture():
-    return score_case
 
 
 # --------------------------------------------------------------------------

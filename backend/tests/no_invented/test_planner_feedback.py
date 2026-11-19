@@ -17,7 +17,6 @@ from blc.planner import (
     PLANNER_PROMPT,
     plan_question,
 )
-from blc.tools.bev_tools import BEV_TOOL
 
 Q = "How many cambros for 60 guests of peach tea?"
 FB = "FEEDBACK-MARKER: calculate_bev_item gallons 6"
@@ -144,11 +143,6 @@ def test_ec20_other_description_text_kept():
 def test_ec20_rule_not_in_the_prompt():
     """Covers: AC-3 (wrong), EC-20. PLANNER_PROMPT is unchanged: it does not contain the rule."""
     assert NO_INVENTED_RULE not in PLANNER_PROMPT
-
-
-def test_ec20_rule_not_in_the_real_bev_tool():
-    """Covers: AC-3 (wrong), EC-20. BEV_TOOL.description does not contain the rule."""
-    assert NO_INVENTED_RULE not in BEV_TOOL.description
 
 
 def test_ec20_rule_not_in_the_answer_prompt():

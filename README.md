@@ -16,7 +16,7 @@ Chat runs on **Claude Haiku** (`claude-haiku-4-5`) through the Anthropic API, pa
 1. Get a free embeddings key in [Google AI Studio](https://aistudio.google.com/apikey) and a chat key in the [Claude Console](https://console.anthropic.com/) (add credits; setting a monthly spend limit there is recommended).
 2. Put both in a `.env` file in the repo root: `GOOGLE_API_KEY=your-key` and `ANTHROPIC_API_KEY=your-key`.
 3. For the GitHub Actions ingest workflow, add only the Google key as the repo secret `GOOGLE_API_KEY` (ingest needs no Anthropic key).
-4. Every chunk records the embedding model that built it. The committed `.chroma/` was built with `nomic-embed-text`, so it must be re-ingested (run the workflow, or `backend/scripts/ingest.py`) before chat starts; the chat entry points refuse to start on a store built by another model.
+4. Every chunk records the embedding model that built it. The chat entry points refuse to start on a store built by another embedding model; re-ingest (run the workflow, or `backend/scripts/ingest.py`) after changing it.
 
 **Privacy:** questions are still sent to Google for embedding on the free tier, where Google may use them to improve its products, so questions must not contain client personal data.
 
@@ -26,7 +26,6 @@ Chat runs on **Claude Haiku** (`claude-haiku-4-5`) through the Anthropic API, pa
 | `backend/scripts/ingest.py` | Load → chunk → embed → store in Chroma |
 | `backend/scripts/chat.py` | Employee Q&A loop in the terminal |
 | `backend/scripts/web.py` | Web chat: API + the page in `frontend/` (spec 032) |
-| `backend/scripts/voice_chat.py` | Push-to-talk voice version of the chat loop |
 | `backend/src/blc/` | Feature packages the scripts use |
 | `backend/tests/` | pytest suites (unit, integration, eval) |
 | `frontend/` | The web chat page (HTML/CSS/JS, images in `frontend/assets/`) |
@@ -71,22 +70,6 @@ docker compose -f docker/compose.yaml up --build        # rebuild after code cha
 - Ingest detects changes by file **content hash**, not modification time: it re-embeds only files whose content changed and removes the chunks of deleted files.
 - The GitHub Actions workflow `.github/workflows/ingest.yml` owns `.chroma/`. When a `data/**/*.md` file is added, changed or deleted on `main`, it re-ingests and commits the updated `.chroma/` (commit message contains `[skip ci]`). Don't commit local `.chroma/` changes; run `git restore .chroma` before pulling if you ran ingest locally.
 - Only `data/**/*.md` is committed. JSON tool data (recipes, pull-sheet menu and rules) and photos stay gitignored, so copy them to a new machine by hand.
-
-## Voice chat
-
-You can ask questions out loud and hear the answer read back:
-
-```bash
-poetry run python backend/scripts/voice_chat.py
-```
-
-- **Push-to-talk:** press Enter to start recording, ask your question, then press Enter again to stop. The bot prints what it heard (`You (heard): …`), prints the answer, then reads it aloud. Say "quit", "exit" or "bye" (or press Ctrl+C) to leave. If the recording is too short or silent, it prints `(didn't catch that)`.
-- **Spoken answers skip clutter:** file paths, `[1]`-style citations and markdown are printed but not read aloud.
-- **First run downloads models** into `.models/` (gitignored): the faster-whisper `small.en` speech-to-text model and the Piper `en_US-lessac-medium` voice. After that, voice chat works fully offline and audio never leaves your machine.
-- **macOS microphone permission:** the first time you record, macOS asks whether your terminal app (Terminal, iTerm, VS Code, …) may use the microphone. Allow it. If you denied it earlier, enable it under System Settings → Privacy & Security → Microphone, then restart the terminal.
-- You still need the Chroma store (`backend/scripts/ingest.py`) and both API keys set, just as for text chat.
-
----
 
 ## Workflow (user prompt → answer)
 

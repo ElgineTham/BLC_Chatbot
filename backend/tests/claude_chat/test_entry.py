@@ -12,13 +12,6 @@ import chat
 import ingest
 
 
-class _Boom:
-    """Injected voice component that fails the test if it is ever used."""
-
-    def __getattr__(self, name):
-        raise AssertionError(f"component used unexpectedly: {name}")
-
-
 def _run(name):
     if name == "chat":
         return chat.main()
@@ -26,20 +19,10 @@ def _run(name):
         import web
 
         return web.main([])
-    if name == "trace_flow":
-        import trace_flow
-
-        return trace_flow.main(["Where is the coffee?"])
-    if name == "voice_chat":
-        try:
-            import voice_chat
-        except ImportError as e:  # voice dependencies are an optional group
-            pytest.skip(f"voice_chat not importable: {e}")
-        return voice_chat.main(recorder=_Boom(), transcriber=_Boom(), speaker=_Boom())
     raise ValueError(name)
 
 
-CHAT_ENTRY_POINTS = ["chat", "web", "trace_flow", "voice_chat"]
+CHAT_ENTRY_POINTS = ["chat", "web"]
 
 
 @pytest.fixture

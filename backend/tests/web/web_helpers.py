@@ -5,7 +5,7 @@ from pathlib import Path
 from web import ChatTurn
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
-LOGO_FILE = REPO_ROOT / "docs" / "specs" / "032-assets" / "blc_logo.png"
+LOGO_FILE = REPO_ROOT / "frontend" / "assets" / "blc_logo.png"
 
 
 class FakeAnswerer:

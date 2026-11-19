@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from blc.tools.bev_tools.gallons import guests_to_gallons
-from blc.tools.recipe_tools.book import Recipe, RecipeBook, load_recipe_book
+from blc.tools.recipe_tools.bags import BAG_UNIT, choose_bags
+from blc.tools.recipe_tools.book import Ingredient, Recipe, RecipeBook, load_recipe_book
 from blc.tools.recipe_tools.reply_text import (
     ingredient_line,
     invalid_text,
@@ -72,15 +73,21 @@ def _scale_one(item_amount: Fraction | None, batch: Fraction, yield_gallons: Fra
     return batch if item_amount is None else item_amount * batch / yield_gallons
 
 
+def _scale_item(item: Ingredient, batch: Fraction, yield_gallons: Fraction) -> list[ScaledIngredient]:
+    if item.bags is not None:
+        counts = choose_bags(item.bags, batch)
+        return [
+            ScaledIngredient(size.name, Fraction(count), BAG_UNIT, False)
+            for size, count in zip(item.bags, counts)
+            if count >= 1
+        ]
+    amount = _scale_one(item.amount, batch, yield_gallons)
+    return [ScaledIngredient(item.name, amount, FILL_UNIT if item.fill else str(item.unit), item.fill)]
+
+
 def _scaled(recipe: Recipe, batch: Fraction, guests: int | None) -> RecipeResult:
     scaled = tuple(
-        ScaledIngredient(
-            item.name,
-            _scale_one(item.amount, batch, recipe.yield_gallons),
-            FILL_UNIT if item.fill else str(item.unit),
-            item.fill,
-        )
-        for item in recipe.ingredients
+        line for item in recipe.ingredients for line in _scale_item(item, batch, recipe.yield_gallons)
     )
     lines = [ingredient_line(i.name, i.amount, i.unit, i.fill) for i in scaled]
     text = ok_text(recipe.name, batch, guests, lines, recipe.steps)

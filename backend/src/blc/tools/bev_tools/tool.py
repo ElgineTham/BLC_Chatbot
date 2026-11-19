@@ -1,24 +1,11 @@
-"""BEV_TOOL: the LangChain tool the chat model calls (flat schema, spec 005 section 3.3)."""
+"""Schema text of the beverage tool (spec 005 section 3.3); the planner builds its view from it."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from langchain_core.tools import BaseTool
-
-from blc.tools.bev_tools.catalog import Catalog
-from blc.tools.bev_tools.arguments import run_bev_tool
 from blc.tools.bev_tools.calculator import BEV_ITEMS, BEV_TOOL_NAME
 
-BEV_TOOL_DESCRIPTION = (
-    "Calculates beverage pull sheet amounts exactly: gallons, cambros, cups or supplies "
-    "for the drinks and guest count the user gave. You must use this tool instead of "
-    "calculating these numbers yourself. If the result asks a question, ask the user "
-    "that question. Example calls: "
-    '{"item": "cambros", "drinks": ["brewed hot cider", "peach tea"], "gallons": [6, 4]} '
-    'and {"item": "supplies", "drinks": ["decaf"], "guests": 45} '
-    'and {"item": "cups", "guests": 30}.'
-)
 ITEM_DESCRIPTION = (
     "What the user wants to know. gallons: how many gallons to make. cambros: which "
     "cambros or containers to use, or what to put or serve a drink in. cups: how many "
@@ -59,25 +46,3 @@ BEV_SCHEMA: dict[str, Any] = {
     "required": ["item"],
 }
 
-
-class BevTool(BaseTool):
-    """Passes the raw arguments to run_bev_tool so bad input gives "invalid", not an error."""
-
-    name: str = BEV_TOOL_NAME
-    description: str = BEV_TOOL_DESCRIPTION
-    args_schema: dict[str, Any] | None = BEV_SCHEMA
-    catalog: Catalog | None = None
-
-    def _parse_input(self, tool_input: Any, tool_call_id: str | None = None) -> Any:
-        return tool_input
-
-    def _run(self, **kwargs: Any) -> str:
-        return run_bev_tool(kwargs, self.catalog).text
-
-
-def make_bev_tool(catalog: Catalog | None = None) -> BaseTool:
-    """The chat tool; catalog=None loads the real files when the tool runs."""
-    return BevTool(catalog=catalog)
-
-
-BEV_TOOL: BaseTool = make_bev_tool()

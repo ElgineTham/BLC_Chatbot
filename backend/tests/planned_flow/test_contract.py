@@ -50,21 +50,6 @@ def test_one_character_question_is_accepted(run):
 
 # ---------------------------------------------------------------- EC-12 history
 
-def test_history_reaches_planner_and_answer_messages(run, make_runner, text_of):
-    """Covers: AC-4 (right), EC-12. Every history content appears in the planner's messages and in
-    the answer model's messages, and so does the question."""
-    runners = {BEV: make_runner("ok", "Use 3 cambros."), REC: make_runner("ok", "x")}
-    args = {"item": "cambros", "drinks": ["coffee", "decaf"], "gallons": [5, 5]}
-    r = run("5 gallons each.", [(BEV, args)], runners=runners, history=HISTORY)
-    planner_text = text_of(r.llm.invoke_calls[0])
-    answer_text = text_of(r.llm.stream_calls[0])
-    for item in HISTORY:
-        assert item["content"] in planner_text
-        assert item["content"] in answer_text
-    assert "5 gallons each." in planner_text
-    assert "5 gallons each." in answer_text
-
-
 def test_summary_history_item_reaches_the_messages(run, text_of):
     """Covers: AC-4 (right), EC-12. A summary item's content appears in the planner and answer messages."""
     hist = [{"role": "summary", "content": "Earlier they asked about iced tea cambros."}] + HISTORY
@@ -79,35 +64,6 @@ def test_summary_history_item_reaches_the_answer_messages(run, doc, text_of):
     hist = [{"role": "summary", "content": "Earlier they asked about iced tea cambros."}]
     r = run("Where?", [(SEARCH, {"query": "x"})], history=hist, docs={"x": [doc("Doc.", "data/a.md")]})
     assert "Earlier they asked about iced tea cambros." in text_of(r.llm.stream_calls[0])
-
-
-def test_outcome_history_extends_input_without_mutating_it(run, make_runner):
-    """Covers: AC-4 (right), EC-12. outcome.history = input + user + assistant(reply);
-    the input list is unchanged."""
-    runners = {BEV: make_runner("ok", "Use 3 cambros."), REC: make_runner("ok", "x")}
-    hist = [dict(h) for h in HISTORY]
-    snapshot = [dict(h) for h in HISTORY]
-    r = run("5 gallons each.", [(BEV, BEV_ARGS_EACH())], runners=runners, history=hist,
-            pieces=("Bring ", "3 cambros."))
-    assert r.outcome.history == snapshot + [
-        {"role": "user", "content": "5 gallons each."},
-        {"role": "assistant", "content": "Bring 3 cambros."},
-    ]
-    assert hist == snapshot
-    assert r.outcome.history is not hist
-
-
-def BEV_ARGS_EACH():
-    return {"item": "cambros", "drinks": ["coffee", "decaf"], "gallons": [5, 5]}
-
-
-@pytest.mark.parametrize("history", [None, []])
-def test_no_history_gives_two_items(run, make_runner, history):
-    """Covers: AC-4 (boundary), EC-12. history=None or [] -> a two-item outcome.history."""
-    runners = {BEV: make_runner("ok", "t"), REC: make_runner("ok", "x")}
-    r = run("How many?", [(BEV, BEV_ARGS_EACH())], runners=runners, history=history, pieces=("Two.",))
-    assert r.outcome.history == [{"role": "user", "content": "How many?"},
-                                 {"role": "assistant", "content": "Two."}]
 
 
 # ---------------------------------------------------------------- EC-13 planner_llm

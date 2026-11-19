@@ -63,16 +63,6 @@ def test_ollama_only_in_eval_group(pyproject):
         assert "langchain-ollama" not in names and "ollama" not in names, gname
 
 
-def test_voice_group_unchanged(pyproject):
-    """Covers: AC-13 (boundary), REPO-1. The voice group keeps its three packages and constraints."""
-    voice = pyproject["tool"]["poetry"]["group"]["voice"]["dependencies"]
-    assert voice == {
-        "faster-whisper": ">=1.1,<2.0",
-        "piper-tts": ">=1.3,<2.0",
-        "sounddevice": ">=0.5,<0.6",
-    }
-
-
 # ---- REPO-2 / AC-13
 
 IMPORT_RE = re.compile(r"^\s*(?:from|import)\s+(?:langchain_ollama|ollama)\b", re.M)
@@ -129,11 +119,11 @@ def test_key_step_runs_ingest(wf):
 
 
 def test_deps_installed_without_voice_and_eval(wf):
-    """Covers: AC-14 (right), REPO-3. The poetry install excludes both the voice and eval groups."""
+    """Covers: AC-14 (right), REPO-3; spec 041 AC-5. The poetry install excludes the eval group (the voice group is gone)."""
     installs = [s["run"] for s in _steps(wf) if "run" in s and "poetry install" in s["run"]]
     assert installs
     for run in installs:
-        assert "--without" in run and "voice" in run and "eval" in run
+        assert "--without" in run and "eval" in run
 
 
 def test_push_paths_include_llm_and_data(wf):
@@ -214,9 +204,9 @@ def test_compose_port_and_mounts_unchanged(docker_cfg):
 
 
 def test_dockerfile_install_excludes_voice_and_eval():
-    """Covers: AC-15 (right), REPO-6. Every poetry install in the Dockerfile is --without voice and eval."""
+    """Covers: AC-15 (right), REPO-6; spec 041 AC-5. Every poetry install in the Dockerfile is --without eval (the voice group is gone)."""
     text = DOCKERFILE.read_text(encoding="utf-8").replace("\\\n", " ")
     installs = [ln for ln in text.splitlines() if "poetry install" in ln]
     assert installs
     for ln in installs:
-        assert "--without" in ln and "voice" in ln and "eval" in ln, ln
+        assert "--without" in ln and "eval" in ln, ln

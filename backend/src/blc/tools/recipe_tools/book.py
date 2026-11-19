@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 
+from blc.tools.recipe_tools.bags import BagFormatError, BagSize, parse_bags
 from blc.tools.recipe_tools.names import name_key
 
 ROOT = Path(__file__).resolve().parents[5]
@@ -25,6 +26,7 @@ class Ingredient:
     amount: Fraction | None  # None for a fill ingredient
     unit: str | None
     fill: bool
+    bags: tuple[BagSize, ...] | None = None  # set for a counted-bag ingredient
 
 
 @dataclass(frozen=True)
@@ -63,6 +65,11 @@ def _positive(value: object, what: str) -> Fraction:
 def _ingredient(raw: object, recipe: str) -> Ingredient:
     if not isinstance(raw, dict):
         raise RecipeFileError(f"{recipe}: an ingredient must be an object")
+    if "bags" in raw:
+        try:
+            return Ingredient("bags", None, None, False, parse_bags(raw["bags"], recipe))
+        except BagFormatError as error:
+            raise RecipeFileError(str(error)) from error
     name = raw.get("name")
     if not isinstance(name, str) or not name.strip():
         raise RecipeFileError(f"{recipe}: an ingredient needs a name")

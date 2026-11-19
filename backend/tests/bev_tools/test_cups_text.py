@@ -1,7 +1,7 @@
 """Spec 020, AC-1 (cups text, EC-1 to EC-8 and EC-11) and AC-2 (nothing else changes, EC-9 and EC-10).
 
 Only BevResult.text changes, and only for status ok with item "cups". Unit tests: Appendix A catalog from
-tmp_path (conftest `catalog` and `bev_tool` fixtures), no Ollama, no network, nothing read under data/ (NFR-2).
+tmp_path (conftest `catalog` fixture), no Ollama, no network, nothing read under data/ (NFR-2).
 Wording is illustrative in the spec, so these tests check only the required parts.
 """
 
@@ -227,22 +227,14 @@ def test_no_cups_sentence_not_used_when_cups_are_needed(catalog):
     assert "no cups" not in r.text.lower()
 
 
-# ---------------------------------------------------------------- EC-11: tool object
+# ---------------------------------------------------------------- EC-11: run_bev_tool text
 
-def test_ec11_tool_returns_same_text_as_run_bev_tool(catalog, bev_tool):
-    """Covers: AC-1 (right), EC-11. The tool built on the test catalog returns run_bev_tool(...).text for
-    iced tea + lemonade at 90 guests."""
+def test_ec11_run_bev_tool_text_for_iced_tea_and_lemonade(catalog):
+    """Covers: AC-1 (right), EC-11. run_bev_tool's text for iced tea + lemonade at 90 guests names the cold cups."""
     args = {"item": "cups", "drinks": ["iced tea", "lemonade"], "guests": 90}
-    out = bev_tool.invoke(args)
-    assert out == run_bev_tool(args, catalog).text
+    out = run_bev_tool(args, catalog).text
     assert "Cold cups" in out and "140" in out
     assert "gal" not in out.lower()
-
-
-def test_tool_text_for_cups_without_drinks_matches_run_bev_tool(catalog, bev_tool):
-    """Covers: AC-1 (boundary), EC-11. Same for the no-drinks form."""
-    args = {"item": "cups", "guests": 45}
-    assert bev_tool.invoke(args) == run_bev_tool(args, catalog).text
 
 
 # ---------------------------------------------------------------- EC-9 / AC-2: other statuses unchanged

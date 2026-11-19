@@ -89,18 +89,12 @@ def test_chat_model_assertions_use_claude():
 
 CHAT_AND_EMBED_FIXTURES = [
     "answer_grounding/conftest.py",
-    "bev_tools/conftest.py",
     "beverage_knowledge/conftest.py",
-    "flow/conftest.py",
     "food_answers/conftest.py",
     "food_wiring/conftest.py",
     "mixed_questions/conftest.py",
-    "no_invented/conftest.py",
     "planned_flow/conftest.py",
     "planner/conftest.py",
-    "router/conftest.py",
-    "tool_calling/conftest.py",
-    "test_generation_eval.py",
     "web/test_integration.py",
 ]
 
@@ -113,13 +107,6 @@ def test_fixtures_building_both_skip_on_either_missing_key(rel):
     assert "ANTHROPIC_API_KEY" in text, rel
     assert "GOOGLE_API_KEY" in text, rel
     assert "pytest.skip" in text, rel
-
-
-def test_chat_only_fixture_skips_on_anthropic_key():
-    """Covers: AC-14 (right), MIGRATE-2. The tool_step fixture builds only a chat model: it skips on ANTHROPIC_API_KEY."""
-    text = (TESTS_DIR / "tool_step" / "conftest.py").read_text(encoding="utf-8")
-    assert "ANTHROPIC_API_KEY" in text
-    assert "pytest.skip" in text
 
 
 @pytest.mark.parametrize(

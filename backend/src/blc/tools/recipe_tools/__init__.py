@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from blc.tools.recipe_tools.arguments import run_recipe_tool
+from blc.tools.recipe_tools.bags import BAG_UNIT
 from blc.tools.recipe_tools.book import (
     RECIPES_FILE,
     RecipeBook,
@@ -23,6 +24,7 @@ from blc.tools.recipe_tools.scaling import (
 )
 
 __all__ = [
+    "BAG_UNIT",
     "RECIPE_TOOL_NAME", "RECIPE_STATUSES", "RECIPES_FILE", "RecipeFileError", "RecipeBook",
     "load_recipe_book", "ScaledIngredient", "RecipeResult", "scale_recipe",
     "run_recipe_tool", "make_recipe_tool", "RECIPE_TOOL",

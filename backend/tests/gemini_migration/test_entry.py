@@ -12,13 +12,6 @@ import chat
 import ingest
 
 
-class _Boom:
-    """Injected voice component that fails the test if it is ever used."""
-
-    def __getattr__(self, name):
-        raise AssertionError(f"component used unexpectedly: {name}")
-
-
 def _run(name):
     if name == "chat":
         return chat.main()
@@ -28,16 +21,6 @@ def _run(name):
         import web
 
         return web.main([])
-    if name == "trace_flow":
-        import trace_flow
-
-        return trace_flow.main(["Where is the coffee?"])
-    if name == "voice_chat":
-        try:
-            import voice_chat
-        except ImportError as e:  # voice dependencies are an optional group
-            pytest.skip(f"voice_chat not importable: {e}")
-        return voice_chat.main(recorder=_Boom(), transcriber=_Boom(), speaker=_Boom())
     raise ValueError(name)
 
 
@@ -83,7 +66,7 @@ def mismatched(monkeypatch, tmp_path, offline):
 
 # ---- ENTRY-1 / AC-10
 
-@pytest.mark.parametrize("name", ["chat", "web", "trace_flow", "voice_chat", "ingest"])
+@pytest.mark.parametrize("name", ["chat", "web", "ingest"])
 def test_missing_key_returns_1_without_traceback(name, offline, key_missing, tmp_path, monkeypatch, capsys):
     """Covers: AC-10 (wrong), ENTRY-1. MissingApiKeyError -> return 1, stderr names GOOGLE_API_KEY, no traceback."""
     monkeypatch.setattr(chat, "CHROMA_DIR", tmp_path)
@@ -116,7 +99,7 @@ def test_ingest_missing_key_leaves_store_untouched(offline, key_missing, tmp_pat
 
 # ---- ENTRY-3 / AC-11
 
-@pytest.mark.parametrize("name", ["chat", "web", "trace_flow", "voice_chat"])
+@pytest.mark.parametrize("name", ["chat", "web"])
 def test_mismatched_store_returns_1(name, mismatched, capsys):
     """Covers: AC-11 (wrong), ENTRY-3. A store built by another model -> return 1, stderr says ingest.py,
     before input is read or the server started (both are patched to fail the test)."""

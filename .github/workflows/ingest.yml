@@ -25,10 +25,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Poetry and dependencies (no voice or eval group)
+      - name: Install Poetry and dependencies (without the eval group)
         run: |
           pip install poetry
-          poetry install --without voice,eval
+          poetry install --without eval
 
       - name: Ingest
         env:

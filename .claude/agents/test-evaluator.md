@@ -23,7 +23,7 @@ Flag any test that:
 - **can't fail**, e.g. it only asserts mock behaviour, or the assertion is tautological;
 - **asserts undefined behaviour** that the spec doesn't define (over-specification or a spec gap: say which);
 - **depends on names outside the interface contract**;
-- **calls real Ollama/Chroma without** `@pytest.mark.integration` or `@pytest.mark.eval` (it will be flaky or slow);
+- **calls real Anthropic/Gemini/Ollama/Chroma without** `@pytest.mark.integration` or `@pytest.mark.eval` (it will be flaky or slow);
 - has an obvious **bug**: wrong import, broken fixture, wrong expected value relative to the spec.
 
 ## Pass criteria

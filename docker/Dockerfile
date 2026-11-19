@@ -11,7 +11,7 @@ RUN pip install poetry
 
 # Dependency layer: rebuilt only when pyproject.toml or poetry.lock change.
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --no-root --without voice,eval
+RUN poetry install --no-root --without eval
 
 COPY backend ./backend
 COPY frontend ./frontend

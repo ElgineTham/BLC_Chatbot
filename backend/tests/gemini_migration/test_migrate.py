@@ -113,18 +113,11 @@ def test_judge_model_test_stays():
     "rel",
     [
         "answer_grounding/conftest.py",
-        "bev_tools/conftest.py",
-        "beverage_knowledge/conftest.py",
-        "flow/conftest.py",
         "food_answers/conftest.py",
         "food_wiring/conftest.py",
         "mixed_questions/conftest.py",
-        "no_invented/conftest.py",
         "planned_flow/conftest.py",
         "planner/conftest.py",
-        "router/conftest.py",
-        "tool_calling/conftest.py",
-        "tool_step/conftest.py",
     ],
 )
 def test_live_chat_fixtures_use_build_chat_model_and_key_skip(rel):
@@ -133,17 +126,8 @@ def test_live_chat_fixtures_use_build_chat_model_and_key_skip(rel):
     text = (TESTS_DIR / rel).read_text(encoding="utf-8")
     assert "build_chat_model" in text, rel
     assert "ANTHROPIC_API_KEY" in text, rel  # spec 039: chat model runs on Claude
-    if rel != "tool_step/conftest.py":  # that fixture builds no embeddings
-        assert "GOOGLE_API_KEY" in text, rel
+    assert "GOOGLE_API_KEY" in text, rel
     assert "pytest.skip" in text, rel
-
-
-def test_voice_test_builds_model_through_chat_builder():
-    """Covers: AC-20 (right), MIGRATE-5. test_voice_io fakes chat.build_chat_model and checks temperature 0.1."""
-    text = (TESTS_DIR / "test_voice_io.py").read_text(encoding="utf-8")
-    assert '"build_chat_model"' in text
-    assert "0.1" in text
-    assert "voice_chat, \"ChatOllama\"" not in text
 
 
 def test_docker_image_tests_pass_google_api_key():

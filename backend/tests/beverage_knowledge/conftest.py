@@ -4,7 +4,7 @@ Cases are exposed to tests through ``pytest_generate_tests`` so test modules
 never need to import this file.  Fixture/argument names:
 
 - ``answer_case``      A and S cases (retrieval + generation)
-- ``generation_case``  A, S and X cases
+- ``all_generation_cases``  A, S and X cases (the generation eval ran on the removed router flow; spec 041)
 - ``calibration_case`` C cases (dict with id, for, question, reference, answer, expected)
 """
 
@@ -175,7 +175,6 @@ def all_generation_cases():
 def pytest_generate_tests(metafunc):
     for name, cases in (
         ("answer_case", ANSWER_CASES),
-        ("generation_case", GENERATION_CASES),
         ("calibration_case", CALIBRATION_CASES),
     ):
         if name in metafunc.fixturenames:
@@ -238,13 +237,6 @@ def store(ollama_available, gemini_key):
     return chroma
 
 
-@pytest.fixture(scope="session")
-def chat_llm(gemini_key):
-    from chat import build_chat_model
-
-    return build_chat_model(temperature=0)
-
-
 # --------------------------------------------------------------------------
 # Calibration: run once per session, reuse (NFR-5), gate generation (AC-3)
 # --------------------------------------------------------------------------
@@ -263,27 +255,3 @@ def calibration_results(ollama_available):
         except Exception as exc:  # recorded, reported by the tests
             results[case["id"]] = exc
     return results
-
-
-def failed_calibration_ids(results) -> list[str]:
-    failed = []
-    for case in CALIBRATION_CASES:
-        res = results[case["id"]]
-        if isinstance(res, Exception) or res.passed != case["expected"]:
-            failed.append(case["id"])
-    return failed
-
-
-@pytest.fixture(scope="session")
-def calibrated_judge(calibration_results):
-    """judge_answer, only if every calibration case passed; otherwise fail naming the ids."""
-    from blc.judge import judge_answer
-
-    failed = failed_calibration_ids(calibration_results)
-    if failed:
-        pytest.fail(
-            "Judge failed calibration, answers not graded. Failed calibration ids: "
-            + ", ".join(failed),
-            pytrace=False,
-        )
-    return judge_answer

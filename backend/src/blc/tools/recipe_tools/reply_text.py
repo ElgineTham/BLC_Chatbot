@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from fractions import Fraction
 
+from blc.tools.recipe_tools.bags import BAG_UNIT
+
 FORMAT_HELP = (
     'Expected format: {"recipe": "<drink name>", "gallons": <number above 0>} or '
     '{"recipe": "<drink name>", "guests": <whole number>}. '
@@ -27,6 +29,8 @@ def gallons_text(value: Fraction) -> str:
 
 
 def ingredient_line(name: str, amount: Fraction, unit: str, fill: bool) -> str:
+    if unit == BAG_UNIT:
+        return f"{name}: {number_text(amount)} {'bag' if amount == 1 else 'bags'}"
     if fill:
         return f"{name}: fill to {gallons_text(amount)}"
     return f"{name}: {number_text(amount)} {unit}"
