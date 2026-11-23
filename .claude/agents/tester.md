@@ -14,6 +14,7 @@ You are the **tester** on the Bay Laurel Catering chatbot team. The planner give
 - Import only names defined in the spec's **interface contract**. `pyproject.toml` puts `backend/scripts/` and `backend/src/` on the path, so `backend/scripts/config.py` is imported as `import config`.
 - Follow the **Code structure** rules in `CLAUDE.md` for tests: `backend/tests/<feature>/test_<area>.py` grouped by spec section, shared fixtures and helpers in `backend/tests/<feature>/conftest.py`, about 400 lines per file. Don't modify existing test files unless the spec says to; when it does, you may move and reorganise tests but never weaken an assertion.
 - Because you can't run anything, write carefully: correct imports, valid fixtures, no syntax errors.
+- **Imports between test files:** pytest runs with `--import-mode=importlib`, so test folders are NOT on `sys.path`. A plain `from my_helpers import x` in a test file fails at collection unless the folder's `conftest.py` first does `sys.path.insert(0, str(Path(__file__).parent))` (see `backend/tests/napkin_knowledge/conftest.py`). Either keep helpers as fixtures in `conftest.py`, or add that `sys.path` line. Never `from conftest import ...`.
 
 ## What to test
 For **every** AC:

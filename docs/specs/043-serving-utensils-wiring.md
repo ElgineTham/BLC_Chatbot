@@ -1,6 +1,7 @@
 # Spec 043: Connect the serving utensils tool (`calculate_serving_utensils`) to the chatbot
 
-- **Status:** approved
+- **Status:** done (revision 4)
+- **Known limitations:** FOLLOW-3 (no food amount, a guest count in the history) is still planned as a search in every run, so the model answers "I don't know" instead of asking how many; the FOLLOW area still meets its threshold. The planner drink eval cases T5 and T9 (`planner/test_planner_eval.py`) fail identically on the code before this spec (`572c2a8`), so they are not a regression from it.
 - **Date:** 2026-11-18 (revision 1: two more existing assertions listed in §3; INVENT-3 uses Appendix A foods. Revision 2: the description tells the two fruit items apart; CALL-2 also checks totals. Revision 3: when to send `"each"`, `"dozen"` or no unit. Revision 4: a serving-utensil question with no amount still goes to the tool, which asks how many; FOLLOW-3 accepts that)
 
 ## 1. Goal
