@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Callable, Mapping
 
+from blc.tools.always_tools import ALWAYS_TOOL_NAME, run_always_tool
 from blc.tools.bev_tools import run_bev_tool
 from blc.tools.food_tools import run_food_tool
 from blc.tools.recipe_tools import run_recipe_tool
@@ -44,11 +45,17 @@ def _run_serv(args: dict[str, object]) -> ToolOutput:
     return ToolOutput(result.status, result.text)
 
 
+def _run_always(args: dict[str, object]) -> ToolOutput:
+    result = run_always_tool(args)
+    return ToolOutput(result.status, result.text)
+
+
 DEFAULT_TOOL_RUNNERS: Mapping[str, ToolRunner] = {
     "calculate_bev_item": _run_bev,
     "scale_recipe": _run_recipe,
     "calculate_food_item": _run_food,
     SERV_TOOL_NAME: _run_serv,
+    ALWAYS_TOOL_NAME: _run_always,
 }
 
 

@@ -50,7 +50,7 @@ def test_food_tool_name_constant():
 def test_planner_tools_are_old_three_plus_food_last():
     """Covers: AC-1 (right), CALL-7. Old three by identity and in order, then exactly one food tool, last."""
     assert isinstance(PLANNER_TOOLS, tuple)
-    assert len(PLANNER_TOOLS) == 5  # spec 043: the serving utensils tool is now last
+    assert len(PLANNER_TOOLS) == 6  # spec 045: serving at index 4, the always tool last
     assert PLANNER_TOOLS[0] is SEARCH_TOOL
     assert PLANNER_TOOLS[1] is PLANNER_BEV_TOOL
     assert PLANNER_TOOLS[2] is RECIPE_TOOL
@@ -62,7 +62,7 @@ def test_exactly_one_food_tool_in_planner_tools():
     """Covers: AC-1 (wrong), CALL-7. No duplicate food tool and no other new tool."""
     names = [t.name for t in PLANNER_TOOLS]
     assert names.count(FOOD_TOOL_NAME) == 1
-    assert len(set(names)) == len(names) == 5
+    assert len(set(names)) == len(names) == 6
 
 
 def test_plan_question_binds_exactly_the_tuple(make_llm, mk):

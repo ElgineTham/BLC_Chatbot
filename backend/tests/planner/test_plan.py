@@ -57,12 +57,13 @@ def test_planner_tools_identity_and_order():
     from blc.tools.food_tools import FOOD_TOOL_NAME
 
     assert isinstance(PLANNER_TOOLS, tuple)
-    assert len(PLANNER_TOOLS) == 5
+    assert len(PLANNER_TOOLS) == 6  # spec 045: the always tool is now last
     assert PLANNER_TOOLS[0] is SEARCH_TOOL
     assert PLANNER_TOOLS[1] is PLANNER_BEV_TOOL
     assert PLANNER_TOOLS[2] is RECIPE_TOOL
     assert PLANNER_TOOLS[3].name == FOOD_TOOL_NAME == "calculate_food_item"
     assert PLANNER_TOOLS[4].name == "calculate_serving_utensils"  # spec 043 AC-1
+    assert PLANNER_TOOLS[5].name == "calculate_always_items"  # spec 045 AC-9
 
 
 # --------------------------------------------------------------------------

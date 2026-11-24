@@ -72,8 +72,8 @@ def test_calc_7_direct_need_info():
     """Covers: AC-6 (wrong), AC-3, CALC-7. None means not given."""
     r = calculate_always_items(None, 3)
     assert r.status == "need_info"
-    assert r.checks is None
-    assert r.counts is None
+    assert r.checks == ALWAYS_CHECK_ITEMS
+    assert r.counts == {"black napkins": 3}
 
 
 def test_calc_7_direct_invalid_negative():
@@ -93,7 +93,8 @@ def test_direct_both_none_need_info():
     """Covers: AC-6 (wrong), AC-3. Extra: both None is need_info."""
     r = calculate_always_items(None, None)
     assert r.status == "need_info"
-    assert r.counts is None
+    assert r.checks == ALWAYS_CHECK_ITEMS
+    assert r.counts == {}
 
 
 def test_direct_invalid_beats_need_info():

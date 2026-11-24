@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from blc.tools.always_tools.counting import build_result
 from blc.tools.always_tools.reply_text import invalid_text
 from blc.tools.always_tools.result import AlwaysResult
+from blc.tools.always_tools.scopes import parse_scope, scope_fields
 
 FIELDS: tuple[str, ...] = ("tables", "drip_trays")
 
@@ -44,7 +45,8 @@ def _from_number(number: float) -> int | _Bad:
 def run_always_tool(args: Mapping[str, object]) -> AlwaysResult:
     if not isinstance(args, Mapping):
         return AlwaysResult("invalid", invalid_text([]), None, None)
-    parsed = {name: _parse(args.get(name)) for name in FIELDS}
+    about = parse_scope(args.get("about"))
+    parsed = {name: _parse(args.get(name)) for name in scope_fields(about)}
     bad = tuple(name for name, value in parsed.items() if isinstance(value, _Bad))
     values = {name: (None if isinstance(v, _Bad) else v) for name, v in parsed.items()}
-    return build_result(values["tables"], values["drip_trays"], bad)
+    return build_result(values.get("tables"), values.get("drip_trays"), bad, about)

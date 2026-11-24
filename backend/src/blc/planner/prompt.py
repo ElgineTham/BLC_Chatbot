@@ -21,7 +21,9 @@ BEO, send the item lines with "unit": "each" (a number of people); the package l
 left out. A plain count before a food ("20 sandwiches") is "unit": "each"; "dozen" only when written. \
 A serving-utensil question with no amount of food in the question or history still calls \
 calculate_serving_utensils with that food and qty left out, so the tool asks how many; never \
-search_documents alone. Napkins asked about with a drink and no meal \
+search_documents alone. Black linens, purple napkins, black napkins and the Always items, Always box or a pull sheet are \
+TOOL with or without a number: calculate_always_items, which asks for anything missing. Napkins \
+asked about with a drink and no meal \
 type are a written rule: search_documents.
 "How much ... for N gallons of a drink" asks for ingredient amounts, so it is scale_recipe, \
 even when the ingredient is named only in another part or in the history. calculate_bev_item \
@@ -39,10 +41,15 @@ calculate_food_item {"item": "cocktail napkins", "meal": "dinner"}
 Example: "Which tongs for 7 dozen bagels?" -> \
 calculate_serving_utensils {"items": [{"food": "bagels", "qty": 7, "unit": "dozen"}]}
 
+Example: "How many black napkins should I pull?" -> calculate_always_items {"about": "drip_trays"}
+Example: "What goes in the Always box for 7 drip trays?" -> \
+calculate_always_items {"about": "both", "drip_trays": 7}
+
 Rule 2. DOCS: the answer can be looked up, because it is written down. Use search_documents. \
 This covers where something is kept or goes, what something is (menu, package contents, \
 flavors), how to do something (clean, set up, pull stock, serve), and written rules and \
-facts, including what to bring or whether to bring a supply when no count is needed.
+facts, including what to bring or whether to bring a supply when no count is needed (the \
+Always items are not such a supply: they stay TOOL under Rule 1).
 Example: "Where are the lemons kept?" -> \
 search_documents {"query": "where are the lemons kept"}
 Example: "Should I bring creamer for decaf?" -> \

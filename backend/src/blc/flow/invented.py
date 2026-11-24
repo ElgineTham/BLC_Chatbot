@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Mapping
 
 from blc.tool_step.numbers import ALWAYS_ACCEPTED, as_number, numbers_in
+from blc.tools.always_tools import ALWAYS_TOOL_NAME
 from blc.tools.bev_tools import BEV_TOOL_NAME
 from blc.tools.food_tools import FOOD_TOOL_NAME
 from blc.tools.recipe_tools import RECIPE_TOOL_NAME
@@ -15,6 +16,7 @@ CHECKED_ARGUMENTS: tuple[str, ...] = ("guests", "gallons")
 CHECKED_TOOLS: frozenset[str] = frozenset({BEV_TOOL_NAME, RECIPE_TOOL_NAME, FOOD_TOOL_NAME})
 
 
+ALWAYS_CHECKED_ARGUMENTS: tuple[str, ...] = ("tables", "drip_trays")
 ITEMS_ARGUMENT = "items"
 ITEM_QTY = "qty"
 
@@ -37,6 +39,18 @@ def allowed_numbers(question: str, history: list[dict[str, str]] | None = None) 
     for text in texts:
         allowed |= numbers_in(text)
     return allowed
+
+
+def _written_numbers(question: str, history: list[dict[str, str]] | None) -> set[float]:
+    texts = [question.strip() if isinstance(question, str) else ""]
+    for item in history or []:
+        content = item.get("content") if isinstance(item, Mapping) else None
+        if isinstance(content, str):
+            texts.append(content)
+    found: set[float] = set()
+    for text in texts:
+        found |= numbers_in(text)
+    return found
 
 
 def _values_of(value: object) -> list[object]:
@@ -72,6 +86,15 @@ def invented_numbers(
         if name == SERV_TOOL_NAME:
             bad = invented_item_quantities(args, allowed_numbers(question, history))
             return {ITEM_QTY: bad} if bad else {}
+        if name == ALWAYS_TOOL_NAME:
+            allowed = _written_numbers(question, history)
+            return {
+                key: bad for key in ALWAYS_CHECKED_ARGUMENTS
+                if (bad := tuple(
+                    v for v in _values_of(args.get(key))
+                    if (number := as_number(v)) is not None and number not in allowed
+                ))
+            }
         if name not in CHECKED_TOOLS:
             return {}
         allowed = allowed_numbers(question, history)

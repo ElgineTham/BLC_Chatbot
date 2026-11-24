@@ -41,8 +41,8 @@ def test_args_3_tables_not_given(run, missing):
         args["tables"] = missing
     r = run(args)
     assert r.status == "need_info"
-    assert r.checks is None
-    assert r.counts is None
+    assert r.checks == ("bus tubs", "towels")
+    assert r.counts == {"black napkins": 3}
 
 
 @pytest.mark.parametrize("missing", ["MISSING", None, "", "  "])
@@ -53,14 +53,15 @@ def test_args_3_drip_trays_not_given(run, missing):
         args["drip_trays"] = missing
     r = run(args)
     assert r.status == "need_info"
-    assert r.counts is None
+    assert r.counts == {"black linens": 5, "purple napkins": 4}
 
 
 def test_args_4_both_missing(run):
     """Covers: AC-3 (wrong), ARGS-4. {} is need_info."""
     r = run({})
     assert r.status == "need_info"
-    assert r.checks is None and r.counts is None
+    assert r.checks == ("bus tubs", "towels")
+    assert r.counts == {}
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,7 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_core.tools import BaseTool
 
+from blc.planner.always_view import PLANNER_ALWAYS_TOOL
 from blc.planner.bev_view import PLANNER_BEV_TOOL
 from blc.planner.food_view import PLANNER_FOOD_TOOL
 from blc.planner.prompt import PLANNER_PROMPT
@@ -17,6 +18,7 @@ from blc.tools.recipe_tools import RECIPE_TOOL
 
 PLANNER_TOOLS: tuple[BaseTool, ...] = (
     SEARCH_TOOL, PLANNER_BEV_TOOL, RECIPE_TOOL, PLANNER_FOOD_TOOL, PLANNER_SERV_TOOL,
+    PLANNER_ALWAYS_TOOL,
 )
 PLAN_ROUTES: tuple[str, ...] = ("TOOL", "DOCS", "BOTH")
 HISTORY_HEADER = "Recent chat history:"
