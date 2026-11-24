@@ -1,10 +1,16 @@
 # Spec 045: Always items by scope, wired into the chatbot
 
-- **Status:** approved
+- **Status:** done. AC-16 was not met in this spec's own runs, and spec 046's prompt restructure met it (ASK at least 2/3; EVAL-7 is still a known limit).
 - **Date:** 2026-11-23
 - **Revision 2** (2026-11-23, after the first eval run): §3.2 and §4.4 now say which scope wins when a question matches two rows (naming the Always items, Always box or a pull sheet is `"both"`, even with only a table count). An item question with no number still calls the tool, never a search alone. New AC-22 *(manual)*. Tests are unchanged.
 - **Revision 3** (2026-11-23, after the second eval run, where ASK was still 1/3): `PLANNER_PROMPT` gets worked examples for the always tool, and Rule 1 says Always items are TOOL even with no amount. New AC-23 *(manual)*. Tests are unchanged.
 - **Revision 4** (2026-11-23, after the third eval run, where ASK was still 1/3): the always tool's descriptions are rewritten. They now open with when to use the tool, give the scope as an ordered decision, and show question → call examples. The bare `{"about": "both"}` example is removed (it matched EVAL-6), and the repeated always text in `PLANNER_PROMPT` is cut back (§3.2 revision 4). New AC-24 *(manual)*. Tests are unchanged.
+- **Revision 5** (2026-11-23, after the fourth eval run, where ASK was 0/3): a user-requested experiment. Rule 1 of `PLANNER_PROMPT` gets one more always-tool example, about black linens with no number. It shares EVAL-5's scope-and-number pair (`tables`, no number), so AC-19's pair rule makes an exception for this one example only. New AC-25 *(manual)*. Tests are unchanged.
+- **Closed** (2026-11-23): every AC except AC-16 is met. The whole unit suite passes (3451 passed), and the SCOPE (4/4) and MIX (3/3) evals pass. AC-16 failed for two reasons:
+  - **EVAL-5:** the planner model replied with text (asking for the table count itself) instead of calling a tool, and `plan_question` turned that into a search.
+  - **EVAL-6 and EVAL-7:** the prompt's TOOL/DOCS framing sent them the wrong way.
+
+  Spec 046 restructures the planner prompt and replaces revisions 3 and 5's prompt text.
 
 ## 1. Goal
 Spec 044 built `calculate_always_items`, but it answers all-or-nothing and nothing calls it. This spec does two things:
@@ -219,6 +225,10 @@ Each run writes `logs/always_wiring_<YYYY-MM-DD_HHMMSS>.md` with one section per
 
   The other tools' rules and examples are unchanged.
 - **AC-24** *(manual, revision 4)*: The always tool's descriptions and `PLANNER_PROMPT` follow §3.2 revision 4, points 1 to 7. The schema, the tool name and every other tool's text are unchanged. Where revision 4 cuts text that AC-22 required, AC-22 is still met through the tool's descriptions.
+- **AC-25** *(manual, revision 5)*: `PLANNER_PROMPT`'s Rule 1 examples include exactly this line, in the same format as the other `Example:` lines, next to the two AC-23 examples:
+  - `"How many black linens do I need?"` → `calculate_always_items {"about": "tables"}`
+
+  Nothing else in the prompt, the tool descriptions or the code changes. This example is the only exception to AC-19's scope-and-number rule. It is still not an eval question word for word.
 
 ## 6. Test cases
 - **Unit rows** use `run_always_tool` / `calculate_always_items` directly, or scripted fake models with the default runners. The always tool reads no file.
@@ -301,5 +311,5 @@ Each run writes `logs/always_wiring_<YYYY-MM-DD_HHMMSS>.md` with one section per
 | EVAL-10 *(eval)* | MIX | "Special instructions: set up 2 6-ft tables by the bar, 1 drip tray. What goes in the Always box?" | TOOL; `[calculate_always_items]`; `ok`, `{"black linens": 5, "black napkins": 1, "purple napkins": 4}` | AC-17 |
 
 ### 6.8 Checks without a test row
-- AC-19's second and third sentences, AC-20, AC-22, AC-23 and AC-24 are checked by the planner, who reads the changed code and descriptions.
+- AC-19's second and third sentences, AC-20, AC-22, AC-23, AC-24 and AC-25 are checked by the planner, who reads the changed code and descriptions.
 - AC-21 is checked by the implementation-evaluator, who runs the whole unit suite.
