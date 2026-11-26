@@ -16,7 +16,7 @@ CHECKED_ARGUMENTS: tuple[str, ...] = ("guests", "gallons")
 CHECKED_TOOLS: frozenset[str] = frozenset({BEV_TOOL_NAME, RECIPE_TOOL_NAME, FOOD_TOOL_NAME})
 
 
-ALWAYS_CHECKED_ARGUMENTS: tuple[str, ...] = ("tables", "drip_trays")
+ALWAYS_CHECKED_ARGUMENTS: tuple[str, ...] = ("tables", "white_tables", "drip_trays")
 ITEMS_ARGUMENT = "items"
 ITEM_QTY = "qty"
 

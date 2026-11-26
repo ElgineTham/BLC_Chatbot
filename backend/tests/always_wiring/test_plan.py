@@ -180,6 +180,7 @@ def test_plan_3_schema_matches_contract():
         "properties": {
             "about": {"type": "string"},
             "tables": {"type": "integer"},
+            "white_tables": {"type": "integer"},
             "drip_trays": {"type": "integer"},
         },
         "required": ["about"],

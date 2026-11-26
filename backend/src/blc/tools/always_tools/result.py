@@ -7,6 +7,10 @@ from dataclasses import dataclass
 ALWAYS_TOOL_NAME = "calculate_always_items"
 ALWAYS_CHECK_ITEMS: tuple[str, ...] = ("bus tubs", "towels")
 ALWAYS_COUNT_ITEMS: tuple[str, ...] = ("black linens", "black napkins", "purple napkins")
+ALWAYS_WHITE_LINENS = "white linens"
+ALWAYS_COUNT_ORDER: tuple[str, ...] = (
+    "black linens", "white linens", "black napkins", "purple napkins",
+)
 ALWAYS_STATUSES: tuple[str, ...] = ("ok", "need_info", "invalid")
 
 

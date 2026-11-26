@@ -17,9 +17,9 @@ def parse_scope(value: object) -> str:
 
 
 def scope_fields(about: str) -> tuple[str, ...]:
-    """The number fields a scope asks about, in tables, drip_trays order."""
+    """The number fields a scope asks about, in tables, white_tables, drip_trays order."""
     if about == "tables":
-        return ("tables",)
+        return ("tables", "white_tables")
     if about == "drip_trays":
         return ("drip_trays",)
-    return ("tables", "drip_trays")
+    return ("tables", "white_tables", "drip_trays")

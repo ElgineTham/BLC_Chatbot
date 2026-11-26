@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from blc.tools.always_tools.result import ALWAYS_COUNT_ITEMS
+from blc.tools.always_tools.result import ALWAYS_COUNT_ORDER
 
 FIELD_LABELS: dict[str, str] = {"tables": "tables", "drip_trays": "drip trays"}
 EXAMPLE_CALL = '{"tables": 2, "drip_trays": 3}'
@@ -10,7 +10,7 @@ EXAMPLE_CALL = '{"tables": 2, "drip_trays": 3}'
 
 def _lines(counts: dict[str, int]) -> list[str]:
     lines = ["Bus tubs: check", "Towels: check"]
-    lines += [f"{item.capitalize()}: {counts[item]}" for item in ALWAYS_COUNT_ITEMS if item in counts]
+    lines += [f"{item.capitalize()}: {counts[item]}" for item in ALWAYS_COUNT_ORDER if item in counts]
     return lines
 
 
